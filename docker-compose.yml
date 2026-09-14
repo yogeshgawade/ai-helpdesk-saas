@@ -29,6 +29,31 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: ./backend
+    container_name: helpdesk-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/helpdesk
+      SPRING_DATASOURCE_USERNAME: helpdesk
+      SPRING_DATASOURCE_PASSWORD: helpdesk_dev_password
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/local-storage:/app/local-storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: helpdesk-ai-service
+    ports:
+      - "8000:8000"
+
 volumes:
   postgres_data:
   redis_data:
