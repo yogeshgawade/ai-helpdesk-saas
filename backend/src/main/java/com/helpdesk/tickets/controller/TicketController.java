@@ -3,6 +3,8 @@ package com.helpdesk.tickets.controller;
 import com.helpdesk.tickets.dto.CreateTicketMessageRequest;
 import com.helpdesk.tickets.dto.CreateTicketRequest;
 import com.helpdesk.tickets.dto.TicketMessageResponse;
+import com.helpdesk.tickets.dto.TicketListRequest;
+import com.helpdesk.tickets.dto.TicketListResponse;
 import com.helpdesk.tickets.dto.TicketResponse;
 import com.helpdesk.tickets.dto.UpdateTicketRequest;
 import com.helpdesk.tickets.service.TicketService;
@@ -33,10 +35,11 @@ public class TicketController {
     }
 
     @GetMapping
-    public List<TicketResponse> getTickets(
-            @PathVariable UUID organizationId
+    public TicketListResponse getTickets(
+            @PathVariable UUID organizationId,
+            @ModelAttribute TicketListRequest request
     ) {
-        return ticketService.getTickets();
+        return ticketService.getTickets(request);
     }
 
     @GetMapping("/{ticketId}")

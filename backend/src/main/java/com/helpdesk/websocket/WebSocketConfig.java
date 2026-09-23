@@ -27,6 +27,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
         registry
                 .addHandler(webSocketHandler, "/ws")
                 .addInterceptors(webSocketAuthInterceptor)
-                .setAllowedOrigins("http://localhost:3000");
+                .setAllowedOrigins("http://localhost:5173");
     }
 }

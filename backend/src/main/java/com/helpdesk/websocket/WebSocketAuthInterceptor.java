@@ -3,6 +3,8 @@ package com.helpdesk.websocket;
 import com.helpdesk.auth.JwtService;
 import com.helpdesk.auth.User;
 import com.helpdesk.auth.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
@@ -14,6 +16,9 @@ import java.util.UUID;
 
 @Component
 public class WebSocketAuthInterceptor implements HandshakeInterceptor {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(WebSocketAuthInterceptor.class);
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
@@ -58,6 +63,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
         attributes.put("email", user.getEmail());
         attributes.put("user", user);
 
+        log.debug("WebSocket handshake accepted");
         return true;
     }
 

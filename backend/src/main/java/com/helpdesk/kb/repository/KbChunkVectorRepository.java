@@ -65,16 +65,20 @@ public class KbChunkVectorRepository {
 
         return jdbcTemplate.query("""
                 SELECT
-                    id,
-                    document_id,
-                    organization_id,
-                    chunk_text,
-                    chunk_index,
-                    token_count,
-                    1 - (embedding <=> ?) AS similarity
-                FROM kb_chunks
-                WHERE organization_id = ?
-                ORDER BY embedding <=> ?
+                    c.id,
+                    c.document_id,
+                    c.organization_id,
+                    d.title AS document_title,
+                    c.chunk_text,
+                    c.chunk_index,
+                    c.token_count,
+                    1 - (c.embedding <=> ?) AS similarity
+                FROM kb_chunks c
+                JOIN knowledge_base_documents d
+                    ON d.id = c.document_id
+                    AND d.organization_id = c.organization_id
+                WHERE c.organization_id = ?
+                ORDER BY c.embedding <=> ?
                 LIMIT ?
                 """,
                 ps -> {
@@ -87,6 +91,7 @@ public class KbChunkVectorRepository {
                         rs.getObject("id", UUID.class),
                         rs.getObject("document_id", UUID.class),
                         rs.getObject("organization_id", UUID.class),
+                        rs.getString("document_title"),
                         rs.getString("chunk_text"),
                         rs.getInt("chunk_index"),
                         (Integer) rs.getObject("token_count"),

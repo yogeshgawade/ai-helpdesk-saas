@@ -46,11 +46,27 @@ public class TicketMessage {
             String body,
             boolean internalNote
     ) {
+        this(
+                ticketId,
+                authorId,
+                body,
+                internalNote,
+                false
+        );
+    }
+
+    public TicketMessage(
+            UUID ticketId,
+            UUID authorId,
+            String body,
+            boolean internalNote,
+            boolean aiGenerated
+    ) {
         this.ticketId = ticketId;
         this.authorId = authorId;
         this.body = body;
         this.internalNote = internalNote;
-        this.aiGenerated = false;
+        this.aiGenerated = aiGenerated;
     }
 
     @PrePersist

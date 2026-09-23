@@ -6,6 +6,7 @@ public record KbChunkSearchResult(
         UUID id,
         UUID documentId,
         UUID organizationId,
+        String documentTitle,
         String chunkText,
         int chunkIndex,
         Integer tokenCount,

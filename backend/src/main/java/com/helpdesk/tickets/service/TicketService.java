@@ -1,11 +1,23 @@
 package com.helpdesk.tickets.service;
 
+import com.helpdesk.tickets.dto.TicketListRequest;
+import com.helpdesk.tickets.dto.TicketListResponse;
+import com.helpdesk.tickets.repository.TicketSpecifications;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.Instant;
+import java.util.Base64;
 import com.helpdesk.auth.Membership;
 import com.helpdesk.auth.MembershipRepository;
 import com.helpdesk.auth.MembershipRole;
 import com.helpdesk.auth.User;
 import com.helpdesk.exception.ForbiddenException;
 import com.helpdesk.notifications.service.NotificationService;
+import com.helpdesk.redis.TicketClassificationProducer;
+import com.helpdesk.redis.TicketSummarizationProducer;
+import com.helpdesk.sla.repository.SlaPolicyRepository;
 import com.helpdesk.orgs.OrganizationContext;
 import com.helpdesk.orgs.OrganizationContextHolder;
 import com.helpdesk.tickets.dto.CreateTicketMessageRequest;
@@ -20,6 +32,8 @@ import com.helpdesk.tickets.repository.TicketMessageRepository;
 import com.helpdesk.tickets.repository.TicketRepository;
 import com.helpdesk.websocket.WebSocketSessionManager;
 import jakarta.transaction.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -36,19 +50,28 @@ public class TicketService {
     private final TicketMessageRepository ticketMessageRepository;
     private final WebSocketSessionManager webSocketSessionManager;
     private final NotificationService notificationService;
+    private final TicketClassificationProducer ticketClassificationProducer;
+    private final TicketSummarizationProducer ticketSummarizationProducer;
+    private final SlaPolicyRepository slaPolicyRepository;
 
     public TicketService(
             TicketRepository ticketRepository,
             MembershipRepository membershipRepository,
             TicketMessageRepository ticketMessageRepository,
                 WebSocketSessionManager webSocketSessionManager,
-                NotificationService notificationService
+                NotificationService notificationService,
+                TicketClassificationProducer ticketClassificationProducer,
+                TicketSummarizationProducer ticketSummarizationProducer,
+            SlaPolicyRepository slaPolicyRepository
     ) {
         this.ticketRepository = ticketRepository;
         this.membershipRepository = membershipRepository;
         this.ticketMessageRepository = ticketMessageRepository;
         this.webSocketSessionManager = webSocketSessionManager;
         this.notificationService = notificationService;
+        this.ticketClassificationProducer = ticketClassificationProducer;
+        this.ticketSummarizationProducer = ticketSummarizationProducer;
+        this.slaPolicyRepository = slaPolicyRepository;
     }
 
     @Transactional
@@ -81,6 +104,39 @@ public class TicketService {
 
         Ticket savedTicket = ticketRepository.save(ticket);
 
+        slaPolicyRepository
+                .findByOrganizationIdAndPriority(
+                        organizationId,
+                        savedTicket.getPriority()
+                )
+                .ifPresent(policy -> {
+                    Instant createdAt = savedTicket.getCreatedAt();
+
+                    savedTicket.setSlaPolicyId(policy.getId());
+
+                    savedTicket.setFirstResponseDueAt(
+                            createdAt.plusSeconds(
+                                    policy.getFirstResponseMinutes() * 60L
+                            )
+                    );
+
+                    savedTicket.setResolutionDueAt(
+                            createdAt.plusSeconds(
+                                    policy.getResolutionMinutes() * 60L
+                            )
+                    );
+
+                    ticketRepository.save(savedTicket);
+                });
+
+        ticketClassificationProducer.publish(
+                savedTicket.getId().toString(),
+                organizationId.toString(),
+                savedTicket.getSubject(),
+                savedTicket.getPriority().name(),
+                savedTicket.getCategory()
+        );
+
         TicketResponse response = TicketResponse.from(savedTicket);
 
         webSocketSessionManager.broadcastEvent(
@@ -90,6 +146,196 @@ public class TicketService {
         );
 
         return response;
+    }
+
+    @Transactional
+    public TicketListResponse getTickets(TicketListRequest request) {
+        UUID organizationId = getCurrentOrganizationId();
+        UUID currentUserId = getCurrentUserId();
+        MembershipRole role = getCurrentRole();
+
+        int limit = request.limit() == null
+                ? 20
+                : Math.min(Math.max(request.limit(), 1), 100);
+
+        Specification<Ticket> specification =
+                TicketSpecifications.belongsToOrganization(organizationId);
+
+        if (role == MembershipRole.CUSTOMER) {
+            specification = specification.and(
+                    TicketSpecifications.belongsToCustomer(currentUserId)
+            );
+        }
+
+        if (request.search() != null && !request.search().isBlank()) {
+            specification = specification.and(
+                    TicketSpecifications.subjectContains(
+                            request.search().trim()
+                    )
+            );
+        }
+
+        if (request.status() != null) {
+            specification = specification.and(
+                    TicketSpecifications.hasStatus(request.status())
+            );
+        }
+
+        if (request.priority() != null) {
+            specification = specification.and(
+                    TicketSpecifications.hasPriority(request.priority())
+            );
+        }
+
+        if (request.category() != null && !request.category().isBlank()) {
+            specification = specification.and(
+                    TicketSpecifications.hasCategory(
+                            request.category().trim()
+                    )
+            );
+        }
+
+        String sort = request.sort() == null || request.sort().isBlank()
+                ? "newest"
+                : request.sort().trim().toLowerCase();
+
+        if (!sort.equals("newest") && !sort.equals("oldest")) {
+            throw new IllegalArgumentException(
+                    "Invalid sort. Supported values: newest, oldest"
+            );
+        }
+
+        boolean ascending = sort.equals("oldest");
+
+        if (request.cursor() != null && !request.cursor().isBlank()) {
+            String decoded;
+
+            try {
+                decoded = new String(
+                        Base64.getUrlDecoder().decode(request.cursor()),
+                        java.nio.charset.StandardCharsets.UTF_8
+                );
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid ticket cursor");
+            }
+
+            String[] parts = decoded.split("\\|", 3);
+
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("Invalid ticket cursor");
+            }
+
+            if (!parts[0].equals(sort)) {
+                throw new IllegalArgumentException(
+                        "Cursor does not match requested sort"
+                );
+            }
+
+            Instant cursorCreatedAt;
+            UUID cursorId;
+
+            try {
+                cursorCreatedAt = Instant.parse(parts[1]);
+                cursorId = UUID.fromString(parts[2]);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid ticket cursor");
+            }
+
+            specification = specification.and(
+                    (root, query, cb) -> {
+                        if (ascending) {
+                            return cb.or(
+                                    cb.greaterThan(
+                                            root.get("createdAt"),
+                                            cursorCreatedAt
+                                    ),
+                                    cb.and(
+                                            cb.equal(
+                                                    root.get("createdAt"),
+                                                    cursorCreatedAt
+                                            ),
+                                            cb.greaterThan(
+                                                    root.get("id"),
+                                                    cursorId
+                                            )
+                                    )
+                            );
+                        }
+
+                        return cb.or(
+                                cb.lessThan(
+                                        root.get("createdAt"),
+                                        cursorCreatedAt
+                                ),
+                                cb.and(
+                                        cb.equal(
+                                                root.get("createdAt"),
+                                                cursorCreatedAt
+                                        ),
+                                        cb.lessThan(
+                                                root.get("id"),
+                                                cursorId
+                                        )
+                                )
+                        );
+                    }
+            );
+        }
+
+        Sort sortOrder = ascending
+                ? Sort.by(
+                        Sort.Order.asc("createdAt"),
+                        Sort.Order.asc("id")
+                )
+                : Sort.by(
+                        Sort.Order.desc("createdAt"),
+                        Sort.Order.desc("id")
+                );
+
+        PageRequest pageRequest = PageRequest.of(
+                0,
+                limit + 1,
+                sortOrder
+        );
+
+        List<Ticket> tickets = ticketRepository
+                .findAll(specification, pageRequest)
+                .getContent();
+
+        boolean hasMore = tickets.size() > limit;
+
+        if (hasMore) {
+            tickets = tickets.subList(0, limit);
+        }
+
+        String nextCursor = null;
+
+        if (hasMore && !tickets.isEmpty()) {
+            Ticket lastTicket = tickets.get(tickets.size() - 1);
+
+            String cursorValue =
+                    sort
+                            + "|"
+                            + lastTicket.getCreatedAt()
+                            + "|"
+                            + lastTicket.getId();
+
+            nextCursor = Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(
+                            cursorValue.getBytes(
+                                    java.nio.charset.StandardCharsets.UTF_8
+                            )
+                    );
+        }
+
+        return new TicketListResponse(
+                tickets.stream()
+                        .map(TicketResponse::from)
+                        .toList(),
+                nextCursor,
+                hasMore
+        );
     }
 
     @Transactional
@@ -213,6 +459,15 @@ public class TicketService {
             UUID ticketId,
             CreateTicketMessageRequest request
     ) {
+        return createMessage(ticketId, request, false);
+    }
+
+    @Transactional
+    public TicketMessageResponse createMessage(
+            UUID ticketId,
+            CreateTicketMessageRequest request,
+            boolean aiGenerated
+    ) {
         UUID organizationId = getCurrentOrganizationId();
         UUID currentUserId = getCurrentUserId();
         MembershipRole role = getCurrentRole();
@@ -239,11 +494,35 @@ public class TicketService {
                 ticketId,
                 currentUserId,
                 request.body(),
-                request.internalNote()
+                request.internalNote(),
+                aiGenerated
         );
 
         TicketMessage savedMessage =
             ticketMessageRepository.saveAndFlush(message);
+
+        if (!request.internalNote()
+                && role != MembershipRole.CUSTOMER
+                && ticket.getFirstRespondedAt() == null
+                && ticket.getFirstResponseDueAt() != null) {
+
+            ticket.markFirstResponded(savedMessage.getCreatedAt());
+            ticketRepository.save(ticket);
+        }
+
+        if (!request.internalNote()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            ticketSummarizationProducer.publish(
+                                    ticketId.toString(),
+                                    organizationId.toString()
+                            );
+                        }
+                    }
+            );
+        }
 
         TicketMessageResponse response =
             TicketMessageResponse.from(savedMessage);

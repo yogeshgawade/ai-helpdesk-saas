@@ -37,6 +37,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/helpdesk
       SPRING_DATASOURCE_USERNAME: helpdesk
       SPRING_DATASOURCE_PASSWORD: helpdesk_dev_password
+      SPRING_DATA_REDIS_HOST: redis
     ports:
       - "8080:8080"
     volumes:
@@ -53,6 +54,11 @@ services:
     container_name: helpdesk-ai-service
     ports:
       - "8000:8000"
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL: ${LLM_FALLBACK_MODEL}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
 
 volumes:
   postgres_data:

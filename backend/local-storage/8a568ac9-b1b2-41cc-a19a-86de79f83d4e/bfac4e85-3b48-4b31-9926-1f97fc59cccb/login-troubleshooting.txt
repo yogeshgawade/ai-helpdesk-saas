@@ -1,0 +1,7 @@
+Account Login Troubleshooting
+
+If you changed your username and can no longer log in, use your new username when signing in.
+
+If the new username does not work, verify that the username change was successfully saved. You can also use the password reset option to recover access.
+
+If you still cannot log in after changing your username, contact support with your account email address so the account can be reviewed.

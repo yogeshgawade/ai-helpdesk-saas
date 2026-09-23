@@ -20,14 +20,17 @@ import java.util.UUID;
 public class KnowledgeBaseDocumentService {
 
     private final KnowledgeBaseDocumentRepository documentRepository;
-        private final DocumentStorage documentStorage;
+    private final DocumentStorage documentStorage;
+    private final KnowledgeBaseDocumentProcessor documentProcessor;
 
     public KnowledgeBaseDocumentService(
-                        KnowledgeBaseDocumentRepository documentRepository,
-                        DocumentStorage documentStorage
+            KnowledgeBaseDocumentRepository documentRepository,
+            DocumentStorage documentStorage,
+            KnowledgeBaseDocumentProcessor documentProcessor
     ) {
         this.documentRepository = documentRepository;
-                this.documentStorage = documentStorage;
+        this.documentStorage = documentStorage;
+        this.documentProcessor = documentProcessor;
     }
 
     @Transactional
@@ -120,6 +123,12 @@ public class KnowledgeBaseDocumentService {
                     e
             );
         }
+
+        documentProcessor.process(
+                organizationId,
+                savedDocument.getId(),
+                filename
+        );
 
         return KnowledgeBaseDocumentResponse.from(savedDocument);
     }

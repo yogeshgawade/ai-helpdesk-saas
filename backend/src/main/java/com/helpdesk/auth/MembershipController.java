@@ -3,6 +3,7 @@ package com.helpdesk.auth;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -13,6 +14,15 @@ public class MembershipController {
 
     public MembershipController(MembershipService membershipService) {
         this.membershipService = membershipService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<MemberResponse>> getMembers(
+            @PathVariable UUID organizationId
+    ) {
+        return ResponseEntity.ok(
+                membershipService.getMembers(organizationId)
+        );
     }
 
     @PostMapping

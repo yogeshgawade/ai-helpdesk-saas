@@ -27,6 +27,19 @@ public class MembershipService {
         this.organizationRepository = organizationRepository;
     }
 
+    public java.util.List<MemberResponse> getMembers(UUID organizationId) {
+        OrganizationContext context = OrganizationContextHolder.get();
+
+        if (context == null) {
+            throw new IllegalStateException("Organization context not set");
+        }
+
+        return membershipRepository.findByOrganizationId(organizationId)
+                .stream()
+                .map(MemberResponse::from)
+                .toList();
+    }
+
     @Transactional
     public MemberResponse addMember(
             UUID organizationId,

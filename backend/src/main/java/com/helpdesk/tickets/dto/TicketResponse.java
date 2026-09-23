@@ -17,6 +17,8 @@ public record TicketResponse(
         TicketPriority priority,
         String category,
         UUID slaPolicyId,
+        String aiSummary,
+        Instant aiSummarizedAt,
         Instant createdAt,
         Instant updatedAt,
         Instant resolvedAt
@@ -33,6 +35,8 @@ public record TicketResponse(
                 ticket.getPriority(),
                 ticket.getCategory(),
                 ticket.getSlaPolicyId(),
+                ticket.getAiSummary(),
+                ticket.getAiSummarizedAt(),
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt(),
                 ticket.getResolvedAt()

@@ -49,8 +49,50 @@ public class Ticket {
     @Column(length = 100)
     private String category;
 
+    @Column(name = "ai_category", length = 100)
+    private String aiCategory;
+
+    @Column(name = "ai_priority", length = 20)
+    private String aiPriority;
+
+    @Column(name = "ai_confidence")
+    private Double aiConfidence;
+
+    @Column(name = "ai_reason", columnDefinition = "TEXT")
+    private String aiReason;
+
+    @Column(name = "ai_classified_at")
+    private Instant aiClassifiedAt;
+
+    @Column(name = "ai_summary", columnDefinition = "TEXT")
+    private String aiSummary;
+
+    @Column(name = "ai_summarized_at")
+    private Instant aiSummarizedAt;
+
     @Column(name = "sla_policy_id")
     private UUID slaPolicyId;
+
+    @Column(name = "first_response_due_at")
+    private Instant firstResponseDueAt;
+
+    @Column(name = "resolution_due_at")
+    private Instant resolutionDueAt;
+
+    @Column(name = "first_responded_at")
+    private Instant firstRespondedAt;
+
+    @Column(name = "sla_first_response_breached", nullable = false)
+    private boolean slaFirstResponseBreached;
+
+    @Column(name = "sla_resolution_breached", nullable = false)
+    private boolean slaResolutionBreached;
+
+    @Column(name = "sla_first_response_breached_at")
+    private Instant slaFirstResponseBreachedAt;
+
+    @Column(name = "sla_resolution_breached_at")
+    private Instant slaResolutionBreachedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -149,6 +191,34 @@ public class Ticket {
         return slaPolicyId;
     }
 
+    public Instant getFirstResponseDueAt() {
+        return firstResponseDueAt;
+    }
+
+    public Instant getResolutionDueAt() {
+        return resolutionDueAt;
+    }
+
+    public Instant getFirstRespondedAt() {
+        return firstRespondedAt;
+    }
+
+    public boolean isSlaFirstResponseBreached() {
+        return slaFirstResponseBreached;
+    }
+
+    public boolean isSlaResolutionBreached() {
+        return slaResolutionBreached;
+    }
+
+    public Instant getSlaFirstResponseBreachedAt() {
+        return slaFirstResponseBreachedAt;
+    }
+
+    public Instant getSlaResolutionBreachedAt() {
+        return slaResolutionBreachedAt;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -159,6 +229,34 @@ public class Ticket {
 
     public Instant getResolvedAt() {
         return resolvedAt;
+    }
+
+    public String getAiCategory() {
+        return aiCategory;
+    }
+
+    public String getAiPriority() {
+        return aiPriority;
+    }
+
+    public Double getAiConfidence() {
+        return aiConfidence;
+    }
+
+    public String getAiReason() {
+        return aiReason;
+    }
+
+    public Instant getAiClassifiedAt() {
+        return aiClassifiedAt;
+    }
+
+    public String getAiSummary() {
+        return aiSummary;
+    }
+
+    public Instant getAiSummarizedAt() {
+        return aiSummarizedAt;
     }
 
     public void setAssignedAgentId(UUID assignedAgentId) {
@@ -183,5 +281,33 @@ public class Ticket {
 
     public void setSlaPolicyId(UUID slaPolicyId) {
         this.slaPolicyId = slaPolicyId;
+    }
+
+    public void setFirstResponseDueAt(Instant firstResponseDueAt) {
+        this.firstResponseDueAt = firstResponseDueAt;
+    }
+
+    public void setResolutionDueAt(Instant resolutionDueAt) {
+        this.resolutionDueAt = resolutionDueAt;
+    }
+
+    public void markFirstResponded(Instant respondedAt) {
+        if (this.firstRespondedAt == null) {
+            this.firstRespondedAt = respondedAt;
+        }
+    }
+
+    public void markFirstResponseBreached(Instant breachedAt) {
+        if (!this.slaFirstResponseBreached) {
+            this.slaFirstResponseBreached = true;
+            this.slaFirstResponseBreachedAt = breachedAt;
+        }
+    }
+
+    public void markResolutionBreached(Instant breachedAt) {
+        if (!this.slaResolutionBreached) {
+            this.slaResolutionBreached = true;
+            this.slaResolutionBreachedAt = breachedAt;
+        }
     }
 }
