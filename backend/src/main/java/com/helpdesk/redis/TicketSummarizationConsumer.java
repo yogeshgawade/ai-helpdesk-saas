@@ -17,6 +17,7 @@ import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -38,14 +39,14 @@ public class TicketSummarizationConsumer {
     private final TicketMessageRepository ticketMessageRepository;
     private final TenantTransactionExecutor tenantTransactionExecutor;
 
-
     public TicketSummarizationConsumer(
             StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             RedisTemplate<String, String> redisTemplate,
             AiServiceClient aiServiceClient,
             TicketRepository ticketRepository,
             TicketMessageRepository ticketMessageRepository,
-            TenantTransactionExecutor tenantTransactionExecutor
+            TenantTransactionExecutor tenantTransactionExecutor,
+            @Qualifier("ticketSummarizationConsumerGroup") boolean ticketSummarizationConsumerGroup
     ) {
         this.container = container;
         this.redisTemplate = redisTemplate;

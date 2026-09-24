@@ -13,6 +13,7 @@ import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -33,13 +34,13 @@ public class TicketClassificationConsumer {
     private final TicketRepository ticketRepository;
     private final TenantTransactionExecutor tenantTransactionExecutor;
 
-
     public TicketClassificationConsumer(
             StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             RedisTemplate<String, String> redisTemplate,
             AiServiceClient aiServiceClient,
             TicketRepository ticketRepository,
-            TenantTransactionExecutor tenantTransactionExecutor
+            TenantTransactionExecutor tenantTransactionExecutor,
+            @Qualifier("ticketClassificationConsumerGroup") boolean ticketClassificationConsumerGroup
     ) {
         this.container = container;
         this.redisTemplate = redisTemplate;

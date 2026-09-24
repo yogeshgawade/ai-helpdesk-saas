@@ -60,7 +60,8 @@ class TicketSummarizationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         ticketMessageRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         when(tenantTransactionExecutor.execute(
@@ -198,7 +199,8 @@ class TicketSummarizationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         ticketMessageRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         when(tenantTransactionExecutor.execute(
@@ -317,7 +319,8 @@ class TicketSummarizationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         ticketMessageRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         when(tenantTransactionExecutor.execute(

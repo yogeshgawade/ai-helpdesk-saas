@@ -68,7 +68,8 @@ class TicketClassificationConsumerTest {
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         when(aiServiceClient.classifyTicket(
@@ -172,7 +173,8 @@ class TicketClassificationConsumerTest {
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         UUID ticketId = UUID.randomUUID();
@@ -259,7 +261,8 @@ class TicketClassificationConsumerTest {
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        tenantTransactionExecutor
+                        tenantTransactionExecutor,
+                        true
                 );
 
         UUID ticketId = UUID.randomUUID();

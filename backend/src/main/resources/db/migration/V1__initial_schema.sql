@@ -523,6 +523,7 @@ CREATE TABLE audit_logs (
 
     CONSTRAINT fk_audit_log_organization
         FOREIGN KEY (organization_id)
+        REFERENCES organizations(id)
         ON DELETE CASCADE,
 
     CONSTRAINT fk_audit_log_actor
