@@ -96,6 +96,10 @@ public class AuthService {
         );
     }
 
+    public String createWebSocketTicket(User user) {
+        return jwtService.generateWebSocketTicket(user);
+    }
+
     private String createUniqueSlug(String name) {
 
         String baseSlug = name

@@ -2,6 +2,7 @@ package com.helpdesk.redis;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.ClassificationResponse;
+import com.helpdesk.metrics.HelpdeskMetrics;
 import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.repository.TicketRepository;
 import jakarta.annotation.PostConstruct;
@@ -33,6 +34,7 @@ public class TicketClassificationConsumer {
     private final AiServiceClient aiServiceClient;
     private final TicketRepository ticketRepository;
     private final TenantTransactionExecutor tenantTransactionExecutor;
+    private final HelpdeskMetrics helpdeskMetrics;
 
     public TicketClassificationConsumer(
             StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
@@ -40,6 +42,7 @@ public class TicketClassificationConsumer {
             AiServiceClient aiServiceClient,
             TicketRepository ticketRepository,
             TenantTransactionExecutor tenantTransactionExecutor,
+            HelpdeskMetrics helpdeskMetrics,
             @Qualifier("ticketClassificationConsumerGroup") boolean ticketClassificationConsumerGroup
     ) {
         this.container = container;
@@ -47,6 +50,7 @@ public class TicketClassificationConsumer {
         this.aiServiceClient = aiServiceClient;
         this.ticketRepository = ticketRepository;
         this.tenantTransactionExecutor = tenantTransactionExecutor;
+        this.helpdeskMetrics = helpdeskMetrics;
     }
 
     @PostConstruct
@@ -205,6 +209,8 @@ public class TicketClassificationConsumer {
                 );
             }
 
+            helpdeskMetrics.incrementAiClassificationSuccess();
+
             log.info(
                     "Persisted AI classification ticketId={}",
                     ticketId
@@ -222,6 +228,8 @@ public class TicketClassificationConsumer {
             );
 
         } catch (Exception exception) {
+
+            helpdeskMetrics.incrementAiClassificationFailure();
 
             int nextRetryCount = retryCount + 1;
 
@@ -338,6 +346,8 @@ public class TicketClassificationConsumer {
                 RedisStreamConfig.TICKET_CLASSIFICATION_GROUP,
                 messageId
         );
+
+        helpdeskMetrics.incrementAiClassificationDlq();
 
         log.error(
                 "Moved ticket classification job to DLQ ticketId={} retryCount={}",

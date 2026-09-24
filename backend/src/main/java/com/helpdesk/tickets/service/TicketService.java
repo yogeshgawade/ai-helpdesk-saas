@@ -14,6 +14,7 @@ import com.helpdesk.auth.MembershipRepository;
 import com.helpdesk.auth.MembershipRole;
 import com.helpdesk.auth.User;
 import com.helpdesk.exception.ForbiddenException;
+import com.helpdesk.metrics.HelpdeskMetrics;
 import com.helpdesk.notifications.service.NotificationService;
 import com.helpdesk.redis.TicketClassificationProducer;
 import com.helpdesk.redis.TicketSummarizationProducer;
@@ -53,6 +54,7 @@ public class TicketService {
     private final TicketClassificationProducer ticketClassificationProducer;
     private final TicketSummarizationProducer ticketSummarizationProducer;
     private final SlaPolicyRepository slaPolicyRepository;
+    private final HelpdeskMetrics helpdeskMetrics;
 
     public TicketService(
             TicketRepository ticketRepository,
@@ -62,7 +64,8 @@ public class TicketService {
                 NotificationService notificationService,
                 TicketClassificationProducer ticketClassificationProducer,
                 TicketSummarizationProducer ticketSummarizationProducer,
-            SlaPolicyRepository slaPolicyRepository
+            SlaPolicyRepository slaPolicyRepository,
+            HelpdeskMetrics helpdeskMetrics
     ) {
         this.ticketRepository = ticketRepository;
         this.membershipRepository = membershipRepository;
@@ -72,6 +75,7 @@ public class TicketService {
         this.ticketClassificationProducer = ticketClassificationProducer;
         this.ticketSummarizationProducer = ticketSummarizationProducer;
         this.slaPolicyRepository = slaPolicyRepository;
+        this.helpdeskMetrics = helpdeskMetrics;
     }
 
     @Transactional
@@ -121,6 +125,8 @@ public class TicketService {
         );
 
         Ticket savedTicket = ticketRepository.save(ticket);
+
+        helpdeskMetrics.incrementTicketsCreated();
 
         slaPolicyRepository
                 .findByOrganizationIdAndPriority(

@@ -1,6 +1,7 @@
 package com.helpdesk.tickets.service;
 
 import com.helpdesk.exception.ForbiddenException;
+import com.helpdesk.metrics.HelpdeskMetrics;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.ResponseAssistantRequest;
@@ -63,6 +64,9 @@ class ResponseAssistantServiceTest {
     @Mock
     private TicketService ticketService;
 
+    @Mock
+    private HelpdeskMetrics helpdeskMetrics;
+
     private ResponseAssistantService service;
 
     private UUID organizationId;
@@ -82,7 +86,8 @@ class ResponseAssistantServiceTest {
                 aiServiceClient,
                 aiGenerationRepository,
                 ticketService,
-                0.75
+                0.75,
+                helpdeskMetrics
         );
 
         OrganizationContextHolder.set(

@@ -2,14 +2,13 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Ticket, TicketMessage } from '../features/tickets/types'
 import type { Notification } from '../api/notifications'
+import { apiClient } from '../api/client'
 
 interface WebSocketEvent {
   type: string
   organizationId: string
   data?: Ticket | TicketMessage | Notification
 }
-
-const TOKEN_KEY = 'auth_token'
 
 const WS_BASE_URL =
   import.meta.env.VITE_WS_BASE_URL ?? 'ws://localhost:8080'
@@ -24,96 +23,106 @@ export function useAppWebSocket(
       return
     }
 
-    const token = localStorage.getItem(TOKEN_KEY)
-
-    if (!token) {
-      return
-    }
-
-    const wsToken = token
-
     let socket: WebSocket | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let stopped = false
 
-    function connect() {
+    async function connect() {
       if (stopped) {
         return
       }
 
-      socket = new WebSocket(
-        `${WS_BASE_URL}/ws?token=${encodeURIComponent(wsToken)}`,
-      )
-
-      socket.onopen = () => {
-        socket?.send(
-          JSON.stringify({
-            type: 'subscribe',
-            organizationId,
-          }),
+      try {
+        const response = await apiClient.post<{ ticket: string }>(
+          '/api/auth/websocket-ticket',
         )
-      }
 
-      socket.onmessage = (event) => {
-        let message: WebSocketEvent
-
-        try {
-          message = JSON.parse(event.data) as WebSocketEvent
-        } catch {
+        if (stopped) {
           return
         }
 
-        if (message.type === 'notification.created') {
-          queryClient.invalidateQueries({
-            queryKey: ['notifications'],
-          })
+        const ticket = response.data.ticket
 
-          return
+        socket = new WebSocket(
+          `${WS_BASE_URL}/ws?ticket=${encodeURIComponent(ticket)}`,
+        )
+
+        socket.onopen = () => {
+          socket?.send(
+            JSON.stringify({
+              type: 'subscribe',
+              organizationId,
+            }),
+          )
         }
 
-        if (message.organizationId !== organizationId) {
-          return
-        }
+        socket.onmessage = (event) => {
+          let message: WebSocketEvent
 
-        if (message.type === 'ticket.updated') {
-          queryClient.invalidateQueries({
-            queryKey: ['ticket', organizationId],
-          })
-
-          queryClient.invalidateQueries({
-            queryKey: ['tickets', organizationId],
-          })
-
-          return
-        }
-
-        if (message.type === 'message.created') {
-          const data = message.data as TicketMessage | undefined
-
-          if (!data) {
+          try {
+            message = JSON.parse(event.data) as WebSocketEvent
+          } catch {
             return
           }
 
-          queryClient.invalidateQueries({
-            queryKey: [
-              'ticket-messages',
-              organizationId,
-              data.ticketId,
-            ],
-          })
-        }
-      }
+          if (message.type === 'notification.created') {
+            queryClient.invalidateQueries({
+              queryKey: ['notifications'],
+            })
 
-      socket.onclose = () => {
+            return
+          }
+
+          if (message.organizationId !== organizationId) {
+            return
+          }
+
+          if (message.type === 'ticket.updated') {
+            queryClient.invalidateQueries({
+              queryKey: ['ticket', organizationId],
+            })
+
+            queryClient.invalidateQueries({
+              queryKey: ['tickets', organizationId],
+            })
+
+            return
+          }
+
+          if (message.type === 'message.created') {
+            const data = message.data as TicketMessage | undefined
+
+            if (!data) {
+              return
+            }
+
+            queryClient.invalidateQueries({
+              queryKey: [
+                'ticket-messages',
+                organizationId,
+                data.ticketId,
+              ],
+            })
+          }
+        }
+
+        socket.onclose = () => {
+          if (stopped) {
+            return
+          }
+
+          reconnectTimer = setTimeout(connect, 2000)
+        }
+
+        socket.onerror = () => {
+          socket?.close()
+        }
+      } catch {
         if (stopped) {
           return
         }
 
         reconnectTimer = setTimeout(connect, 2000)
-      }
-
-      socket.onerror = () => {
-        socket?.close()
       }
     }
 

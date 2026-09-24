@@ -2,6 +2,7 @@ package com.helpdesk.auth;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,5 +28,16 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request) {
 
         return authService.login(request);
+    }
+
+    @PostMapping("/websocket-ticket")
+    public WebSocketTicketResponse websocketTicket(
+            Authentication authentication) {
+
+        User user = (User) authentication.getPrincipal();
+
+        return new WebSocketTicketResponse(
+                authService.createWebSocketTicket(user)
+        );
     }
 }

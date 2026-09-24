@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
@@ -38,24 +40,27 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             WebSocketHandler wsHandler,
             Map<String, Object> attributes) {
 
-        if (request.getURI().getQuery() == null) {
+        String query = request.getURI().getQuery();
+
+        if (query == null || query.isBlank()) {
             return false;
         }
 
-        String token =
-                extractToken(request.getURI().getQuery());
+        String ticket = extractTicket(query);
 
-        if (token == null || !jwtService.isTokenValid(token)) {
+        if (ticket == null ||
+                !jwtService.isWebSocketTicketValid(ticket)) {
+            log.debug("Rejected WebSocket handshake with invalid ticket");
             return false;
         }
 
-        UUID userId =
-                jwtService.extractUserId(token);
+        UUID userId = jwtService.extractUserId(ticket);
 
         User user =
                 userRepository.findById(userId).orElse(null);
 
         if (user == null) {
+            log.debug("Rejected WebSocket handshake for unknown user");
             return false;
         }
 
@@ -75,17 +80,20 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             Exception exception) {
     }
 
-    private String extractToken(String query) {
+    private String extractTicket(String query) {
 
         for (String parameter : query.split("&")) {
 
             String[] parts =
                     parameter.split("=", 2);
 
-            if (parts.length == 2
-                    && parts[0].equals("token")) {
+            if (parts.length == 2 &&
+                    parts[0].equals("ticket")) {
 
-                return parts[1];
+                return URLDecoder.decode(
+                        parts[1],
+                        StandardCharsets.UTF_8
+                );
             }
         }
 

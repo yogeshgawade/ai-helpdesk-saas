@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import java.util.UUID;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -36,15 +37,18 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
     private final RedisRateLimiter redisRateLimiter;
+    private final String allowedOrigin;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
             ObjectMapper objectMapper,
-            RedisRateLimiter redisRateLimiter
+            RedisRateLimiter redisRateLimiter,
+            @Value("${app.cors.allowed-origin}") String allowedOrigin
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.objectMapper = objectMapper;
         this.redisRateLimiter = redisRateLimiter;
+        this.allowedOrigin = allowedOrigin;
     }
 
     @Bean
@@ -75,7 +79,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(java.util.List.of("http://localhost:5173"));
+        configuration.setAllowedOrigins(java.util.List.of(allowedOrigin));
         configuration.setAllowedMethods(java.util.List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ));
@@ -101,6 +105,23 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers ->
+                        headers
+                                .contentTypeOptions(contentTypeOptions -> {})
+                                .frameOptions(frameOptions ->
+                                        frameOptions.deny()
+                                )
+                                .referrerPolicy(referrerPolicy ->
+                                        referrerPolicy.policy(
+                                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER
+                                        )
+                                )
+                                .permissionsPolicy(permissionsPolicy ->
+                                        permissionsPolicy.policy(
+                                                "camera=(), microphone=(), geolocation=(), payment=()"
+                                        )
+                                )
+                )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )

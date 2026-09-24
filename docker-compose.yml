@@ -5,7 +5,8 @@ services:
     environment:
       POSTGRES_DB: helpdesk
       POSTGRES_USER: helpdesk
-      POSTGRES_PASSWORD: helpdesk_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -37,10 +38,12 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/helpdesk
       SPRING_DATASOURCE_USERNAME: helpdesk_app
-      SPRING_DATASOURCE_PASSWORD: helpdesk_app_dev_password
+      SPRING_DATASOURCE_PASSWORD: ${APP_DB_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_FLYWAY_USER: helpdesk
-      SPRING_FLYWAY_PASSWORD: helpdesk_dev_password
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_CORS_ALLOWED_ORIGIN: ${APP_CORS_ALLOWED_ORIGIN:-http://localhost:5173}
     ports:
       - "8080:8080"
     volumes:

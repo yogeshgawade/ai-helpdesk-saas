@@ -49,7 +49,7 @@ Existing category:
 {request.category or "not provided"}
 """.strip()
 
-        raw_response = self.llm_provider.generate(
+        raw_response, _model = self.llm_provider.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
         )

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.UUID;
 
 @Component
@@ -43,11 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain)
             throws ServletException, IOException {
 
-            log.debug(
-                    "JWT authentication filter processing {} {}",
-                    request.getMethod(),
-                    request.getRequestURI()
-            );
+        log.debug(
+                "JWT authentication filter processing {} {}",
+                request.getMethod(),
+                request.getRequestURI()
+        );
 
         String authorizationHeader =
                 request.getHeader("Authorization");
@@ -61,8 +62,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authorizationHeader.substring(7);
 
-        if (!jwtService.isTokenValid(token)) {
-            filterChain.doFilter(request, response);
+        if (token.isBlank() || !jwtService.isTokenValid(token)) {
+            log.debug(
+                    "Rejecting invalid JWT for {} {}",
+                    request.getMethod(),
+                    request.getRequestURI()
+            );
+
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/problem+json");
+            response.getWriter().write(
+                    "{\"title\":\"Unauthorized\",\"status\":401,\"detail\":\"Invalid authentication token\"}"
+            );
             return;
         }
 
@@ -76,7 +87,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(
                                 user,
                                 null,
-                                java.util.Collections.emptyList()
+                                Collections.emptyList()
                         );
 
                 authentication.setDetails(

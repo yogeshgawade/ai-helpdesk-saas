@@ -2,6 +2,7 @@ package com.helpdesk.redis;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.ClassificationResponse;
+import com.helpdesk.metrics.HelpdeskMetrics;
 import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.repository.TicketRepository;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,9 @@ class TicketClassificationConsumerTest {
         TenantTransactionExecutor tenantTransactionExecutor =
                 mock(TenantTransactionExecutor.class);
 
+        HelpdeskMetrics helpdeskMetrics =
+                mock(HelpdeskMetrics.class);
+
         UUID ticketId =
                 UUID.fromString(
                         "efc07661-5c7e-47ba-8555-23b99d94e24e"
@@ -69,6 +73,7 @@ class TicketClassificationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         tenantTransactionExecutor,
+                        helpdeskMetrics,
                         true
                 );
 
@@ -167,6 +172,9 @@ class TicketClassificationConsumerTest {
         TenantTransactionExecutor tenantTransactionExecutor =
                 mock(TenantTransactionExecutor.class);
 
+        HelpdeskMetrics helpdeskMetrics =
+                mock(HelpdeskMetrics.class);
+
         TicketClassificationConsumer consumer =
                 new TicketClassificationConsumer(
                         container,
@@ -174,6 +182,7 @@ class TicketClassificationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         tenantTransactionExecutor,
+                        helpdeskMetrics,
                         true
                 );
 
@@ -255,6 +264,9 @@ class TicketClassificationConsumerTest {
         TenantTransactionExecutor tenantTransactionExecutor =
                 mock(TenantTransactionExecutor.class);
 
+        HelpdeskMetrics helpdeskMetrics =
+                mock(HelpdeskMetrics.class);
+
         TicketClassificationConsumer consumer =
                 new TicketClassificationConsumer(
                         container,
@@ -262,6 +274,7 @@ class TicketClassificationConsumerTest {
                         aiServiceClient,
                         ticketRepository,
                         tenantTransactionExecutor,
+                        helpdeskMetrics,
                         true
                 );
 

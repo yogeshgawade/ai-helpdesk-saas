@@ -5,6 +5,7 @@ import com.helpdesk.ai.client.dto.EmbeddingResponse;
 import com.helpdesk.kb.repository.KbChunkSearchResult;
 import com.helpdesk.kb.repository.KbChunkVectorRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,7 @@ public class KnowledgeBaseSearchService {
         this.chunkVectorRepository = chunkVectorRepository;
     }
 
+    @Transactional
     public List<KbChunkSearchResult> search(
             UUID organizationId,
             String query,

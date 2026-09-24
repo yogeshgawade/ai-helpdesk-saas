@@ -91,6 +91,14 @@ public class KnowledgeBaseDocumentService {
             throw new IllegalArgumentException("Document file cannot be empty");
         }
 
+        final long maxFileSizeBytes = 20L * 1024 * 1024;
+
+        if (file.getSize() > maxFileSizeBytes) {
+            throw new IllegalArgumentException(
+                    "Document file exceeds the maximum allowed size of 20 MB"
+            );
+        }
+
         String filename = file.getOriginalFilename();
 
         if (filename == null || filename.isBlank()) {

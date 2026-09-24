@@ -8,6 +8,7 @@ import com.helpdesk.ai.repository.AiGenerationRepository;
 import com.helpdesk.auth.MembershipRole;
 import com.helpdesk.exception.ForbiddenException;
 import com.helpdesk.kb.repository.KbChunkSearchResult;
+import com.helpdesk.metrics.HelpdeskMetrics;
 import com.helpdesk.kb.service.KnowledgeBaseSearchService;
 import com.helpdesk.orgs.OrganizationContext;
 import com.helpdesk.orgs.OrganizationContextHolder;
@@ -30,6 +31,7 @@ import com.helpdesk.auth.User;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +47,7 @@ public class ResponseAssistantService {
     private final AiGenerationRepository aiGenerationRepository;
     private final TicketService ticketService;
     private final double similarityThreshold;
+    private final HelpdeskMetrics helpdeskMetrics;
 
     public ResponseAssistantService(
             TicketRepository ticketRepository,
@@ -53,7 +56,8 @@ public class ResponseAssistantService {
             AiServiceClient aiServiceClient,
             AiGenerationRepository aiGenerationRepository,
             TicketService ticketService,
-            @Value("${app.kb.rag.similarity-threshold}") double similarityThreshold
+            @Value("${app.kb.response-assistant.similarity-threshold}") double similarityThreshold,
+            HelpdeskMetrics helpdeskMetrics
     ) {
         this.ticketRepository = ticketRepository;
         this.ticketMessageRepository = ticketMessageRepository;
@@ -62,8 +66,10 @@ public class ResponseAssistantService {
         this.aiGenerationRepository = aiGenerationRepository;
         this.ticketService = ticketService;
         this.similarityThreshold = similarityThreshold;
+        this.helpdeskMetrics = helpdeskMetrics;
     }
 
+    @Transactional
     public ResponseAssistantResponse suggestResponse(UUID ticketId) {
         UUID organizationId = getCurrentOrganizationId();
         ensureAgentAccess();
@@ -158,6 +164,9 @@ public class ResponseAssistantService {
         );
 
         aiGenerationRepository.save(generation);
+        helpdeskMetrics.recordAiResponseGeneration(
+                Duration.ofMillis(latencyMs)
+        );
 
         return response;
     }
@@ -283,6 +292,9 @@ public class ResponseAssistantService {
                 );
 
                 aiGenerationRepository.save(generation);
+                helpdeskMetrics.recordAiResponseGeneration(
+                        Duration.ofMillis(latencyMs)
+                );
 
                 List<ResponseAssistantResponse.ResponseAssistantCitation>
                         citations =
