@@ -137,7 +137,27 @@ public class WebSocketSessionManager {
                     )
             );
 
-            sendToUser(userId, message);
+            Set<WebSocketSession> sessions =
+                    sessionsByUser.get(userId);
+
+            if (sessions == null) {
+                return;
+            }
+
+            for (WebSocketSession session : sessions) {
+                Object sessionOrganizationId =
+                        session.getAttributes().get("organizationId");
+
+                if (organizationId.equals(
+                        sessionOrganizationId instanceof UUID
+                                ? sessionOrganizationId
+                                : sessionOrganizationId != null
+                                ? UUID.fromString(sessionOrganizationId.toString())
+                                : null
+                )) {
+                    sendMessage(sessions, session, message);
+                }
+            }
 
         } catch (Exception e) {
             throw new RuntimeException(

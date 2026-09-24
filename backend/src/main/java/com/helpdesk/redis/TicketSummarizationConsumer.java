@@ -3,6 +3,7 @@ package com.helpdesk.redis;
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.SummarizationMessage;
 import com.helpdesk.ai.client.dto.SummarizationResponse;
+import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.entity.Ticket;
 import com.helpdesk.tickets.entity.TicketMessage;
 import com.helpdesk.tickets.repository.TicketMessageRepository;
@@ -35,6 +36,7 @@ public class TicketSummarizationConsumer {
     private final AiServiceClient aiServiceClient;
     private final TicketRepository ticketRepository;
     private final TicketMessageRepository ticketMessageRepository;
+    private final TenantTransactionExecutor tenantTransactionExecutor;
 
 
     public TicketSummarizationConsumer(
@@ -42,13 +44,15 @@ public class TicketSummarizationConsumer {
             RedisTemplate<String, String> redisTemplate,
             AiServiceClient aiServiceClient,
             TicketRepository ticketRepository,
-            TicketMessageRepository ticketMessageRepository
+            TicketMessageRepository ticketMessageRepository,
+            TenantTransactionExecutor tenantTransactionExecutor
     ) {
         this.container = container;
         this.redisTemplate = redisTemplate;
         this.aiServiceClient = aiServiceClient;
         this.ticketRepository = ticketRepository;
         this.ticketMessageRepository = ticketMessageRepository;
+        this.tenantTransactionExecutor = tenantTransactionExecutor;
     }
 
     @PostConstruct
@@ -174,22 +178,49 @@ public class TicketSummarizationConsumer {
             UUID ticketUuid = UUID.fromString(ticketId);
             UUID organizationUuid = UUID.fromString(organizationId);
 
-            Ticket ticket = ticketRepository
-                    .findByIdAndOrganizationId(
-                            ticketUuid,
-                            organizationUuid
-                    )
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Ticket not found: " + ticketId
-                    ));
+            TicketSummaryData summaryData =
+                    tenantTransactionExecutor.execute(
+                            organizationUuid,
+                            () -> {
 
-            List<TicketMessage> messages =
-                    ticketMessageRepository
-                            .findByTicketIdAndInternalNoteFalseOrderByCreatedAtAscIdAsc(
-                                    ticketUuid
-                            );
+                                Ticket ticket = ticketRepository
+                                        .findByIdAndOrganizationId(
+                                                ticketUuid,
+                                                organizationUuid
+                                        )
+                                        .orElseThrow(() -> new IllegalStateException(
+                                                "Ticket not found: " + ticketId
+                                        ));
 
-            if (messages.isEmpty()) {
+                                List<TicketMessage> messages =
+                                        ticketMessageRepository
+                                                .findByTicketIdAndInternalNoteFalseOrderByCreatedAtAscIdAsc(
+                                                        ticketUuid
+                                                );
+
+                                if (messages.isEmpty()) {
+                                    return null;
+                                }
+
+                                List<SummarizationMessage> summarizationMessages =
+                                        messages.stream()
+                                                .map(message -> new SummarizationMessage(
+                                                        message.getAuthorId()
+                                                                .equals(ticket.getCustomerId())
+                                                                ? "customer"
+                                                                : "agent",
+                                                        message.getBody()
+                                                ))
+                                                .toList();
+
+                                return new TicketSummaryData(
+                                        ticket.getSubject(),
+                                        summarizationMessages
+                                );
+                            }
+                    );
+
+            if (summaryData == null) {
 
                 log.info(
                         "No public messages found for ticketId={}; acknowledging job",
@@ -200,21 +231,10 @@ public class TicketSummarizationConsumer {
                 return;
             }
 
-            List<SummarizationMessage> summarizationMessages =
-                    messages.stream()
-                            .map(message -> new SummarizationMessage(
-                                    message.getAuthorId()
-                                            .equals(ticket.getCustomerId())
-                                            ? "customer"
-                                            : "agent",
-                                    message.getBody()
-                            ))
-                            .toList();
-
             SummarizationResponse result =
                     aiServiceClient.summarizeTicket(
-                            ticket.getSubject(),
-                            summarizationMessages
+                            summaryData.subject(),
+                            summaryData.messages()
                     );
 
             log.info(
@@ -222,12 +242,16 @@ public class TicketSummarizationConsumer {
                     ticketId
             );
 
-            int updatedRows = ticketRepository.updateAiSummary(
-                    ticketUuid,
-                    organizationUuid,
-                    result.summary(),
-                    Instant.now()
-            );
+            int updatedRows =
+                    tenantTransactionExecutor.execute(
+                            organizationUuid,
+                            () -> ticketRepository.updateAiSummary(
+                                    ticketUuid,
+                                    organizationUuid,
+                                    result.summary(),
+                                    Instant.now()
+                            )
+                    );
 
             if (updatedRows != 1) {
                 throw new IllegalStateException(
@@ -275,6 +299,12 @@ public class TicketSummarizationConsumer {
                 );
             }
         }
+    }
+
+    private record TicketSummaryData(
+            String subject,
+            List<SummarizationMessage> messages
+    ) {
     }
 
     private void retryMessage(

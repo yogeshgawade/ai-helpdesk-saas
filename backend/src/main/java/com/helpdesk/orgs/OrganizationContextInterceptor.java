@@ -87,6 +87,8 @@ public class OrganizationContextInterceptor implements HandlerInterceptor {
                 )
         );
 
+        TenantDatabaseContextHolder.set(organizationId);
+
         UsernamePasswordAuthenticationToken authenticatedUser =
                 new UsernamePasswordAuthenticationToken(
                         user,
@@ -117,5 +119,6 @@ public class OrganizationContextInterceptor implements HandlerInterceptor {
             Exception exception) {
 
         OrganizationContextHolder.clear();
+        TenantDatabaseContextHolder.clear();
     }
 }

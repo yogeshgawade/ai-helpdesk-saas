@@ -2,6 +2,7 @@ package com.helpdesk.redis;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.ClassificationResponse;
+import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.repository.TicketRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -30,18 +31,21 @@ public class TicketClassificationConsumer {
     private final RedisTemplate<String, String> redisTemplate;
     private final AiServiceClient aiServiceClient;
     private final TicketRepository ticketRepository;
+    private final TenantTransactionExecutor tenantTransactionExecutor;
 
 
     public TicketClassificationConsumer(
             StreamMessageListenerContainer<String, MapRecord<String, String, String>> container,
             RedisTemplate<String, String> redisTemplate,
             AiServiceClient aiServiceClient,
-            TicketRepository ticketRepository
+            TicketRepository ticketRepository,
+            TenantTransactionExecutor tenantTransactionExecutor
     ) {
         this.container = container;
         this.redisTemplate = redisTemplate;
         this.aiServiceClient = aiServiceClient;
         this.ticketRepository = ticketRepository;
+        this.tenantTransactionExecutor = tenantTransactionExecutor;
     }
 
     @PostConstruct
@@ -176,15 +180,22 @@ public class TicketClassificationConsumer {
                     result.confidence()
             );
 
-            int updatedRows = ticketRepository.updateAiClassification(
-                    UUID.fromString(ticketId),
-                    UUID.fromString(organizationId),
-                    result.category(),
-                    result.priority(),
-                    result.confidence(),
-                    result.reason(),
-                    Instant.now()
-            );
+            UUID organizationUuid =
+                    UUID.fromString(organizationId);
+
+            int updatedRows =
+                    tenantTransactionExecutor.execute(
+                            organizationUuid,
+                            () -> ticketRepository.updateAiClassification(
+                                    UUID.fromString(ticketId),
+                                    organizationUuid,
+                                    result.category(),
+                                    result.priority(),
+                                    result.confidence(),
+                                    result.reason(),
+                                    Instant.now()
+                            )
+                    );
 
             if (updatedRows != 1) {
                 throw new IllegalStateException(

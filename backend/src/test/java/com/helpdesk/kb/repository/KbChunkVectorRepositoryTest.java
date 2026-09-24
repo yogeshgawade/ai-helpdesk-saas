@@ -1,5 +1,6 @@
 package com.helpdesk.kb.repository;
 
+import com.helpdesk.orgs.TenantTransactionExecutor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,9 @@ class KbChunkVectorRepositoryTest {
     @Autowired
     private KbChunkRepository chunkRepository;
 
+    @Autowired
+    private TenantTransactionExecutor tenantTransactionExecutor;
+
     @Test
     void shouldInsertAndSearchVector() {
         UUID organizationId =
@@ -31,39 +35,44 @@ class KbChunkVectorRepositoryTest {
         float[] embedding = new float[384];
         embedding[0] = 1.0f;
 
-        vectorRepository.insertChunk(
-                chunkId,
-                documentId,
+        tenantTransactionExecutor.execute(
                 organizationId,
-                "Java pgvector integration test.",
-                embedding,
-                100,
-                6
+                () -> {
+                    vectorRepository.insertChunk(
+                            chunkId,
+                            documentId,
+                            organizationId,
+                            "Java pgvector integration test.",
+                            embedding,
+                            100,
+                            6
+                    );
+
+                    var results = vectorRepository.searchSimilar(
+                            organizationId,
+                            embedding,
+                            5
+                    );
+
+                    assertTrue(
+                            results.stream()
+                                    .anyMatch(result -> result.id().equals(chunkId))
+                    );
+
+                    var result = results.stream()
+                            .filter(r -> r.id().equals(chunkId))
+                            .findFirst()
+                            .orElseThrow();
+
+                    assertEquals(
+                            "Java pgvector integration test.",
+                            result.chunkText()
+                    );
+
+                    assertEquals(1.0, result.similarity(), 0.000001);
+
+                    chunkRepository.deleteById(chunkId);
+                }
         );
-
-        var results = vectorRepository.searchSimilar(
-                organizationId,
-                embedding,
-                5
-        );
-
-        assertTrue(
-                results.stream()
-                        .anyMatch(result -> result.id().equals(chunkId))
-        );
-
-        var result = results.stream()
-                .filter(r -> r.id().equals(chunkId))
-                .findFirst()
-                .orElseThrow();
-
-        assertEquals(
-                "Java pgvector integration test.",
-                result.chunkText()
-        );
-
-        assertEquals(1.0, result.similarity(), 0.000001);
-
-        chunkRepository.deleteById(chunkId);
     }
 }

@@ -2,6 +2,7 @@ package com.helpdesk.redis;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.SummarizationResponse;
+import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.entity.Ticket;
 import com.helpdesk.tickets.entity.TicketMessage;
 import com.helpdesk.tickets.repository.TicketMessageRepository;
@@ -49,14 +50,25 @@ class TicketSummarizationConsumerTest {
         TicketMessageRepository ticketMessageRepository =
                 mock(TicketMessageRepository.class);
 
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
+
         TicketSummarizationConsumer consumer =
                 new TicketSummarizationConsumer(
                         container,
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        ticketMessageRepository
+                        ticketMessageRepository,
+                        tenantTransactionExecutor
                 );
+
+        when(tenantTransactionExecutor.execute(
+                any(UUID.class),
+                org.mockito.ArgumentMatchers.<java.util.function.Supplier<?>>any()
+        )).thenAnswer(invocation ->
+                ((java.util.function.Supplier<?>) invocation.getArgument(1)).get()
+        );
 
         UUID ticketId =
                 UUID.fromString(
@@ -176,14 +188,25 @@ class TicketSummarizationConsumerTest {
         TicketMessageRepository ticketMessageRepository =
                 mock(TicketMessageRepository.class);
 
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
+
         TicketSummarizationConsumer consumer =
                 new TicketSummarizationConsumer(
                         container,
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        ticketMessageRepository
+                        ticketMessageRepository,
+                        tenantTransactionExecutor
                 );
+
+        when(tenantTransactionExecutor.execute(
+                any(UUID.class),
+                org.mockito.ArgumentMatchers.<java.util.function.Supplier<?>>any()
+        )).thenAnswer(invocation ->
+                ((java.util.function.Supplier<?>) invocation.getArgument(1)).get()
+        );
 
         UUID ticketId = UUID.randomUUID();
         UUID organizationId = UUID.randomUUID();
@@ -284,14 +307,25 @@ class TicketSummarizationConsumerTest {
         TicketMessageRepository ticketMessageRepository =
                 mock(TicketMessageRepository.class);
 
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
+
         TicketSummarizationConsumer consumer =
                 new TicketSummarizationConsumer(
                         container,
                         redisTemplate,
                         aiServiceClient,
                         ticketRepository,
-                        ticketMessageRepository
+                        ticketMessageRepository,
+                        tenantTransactionExecutor
                 );
+
+        when(tenantTransactionExecutor.execute(
+                any(UUID.class),
+                org.mockito.ArgumentMatchers.<java.util.function.Supplier<?>>any()
+        )).thenAnswer(invocation ->
+                ((java.util.function.Supplier<?>) invocation.getArgument(1)).get()
+        );
 
         UUID ticketId = UUID.randomUUID();
         UUID organizationId = UUID.randomUUID();

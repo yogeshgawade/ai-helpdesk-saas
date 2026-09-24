@@ -34,7 +34,15 @@ public class MembershipService {
             throw new IllegalStateException("Organization context not set");
         }
 
-        return membershipRepository.findByOrganizationId(organizationId)
+        if (!context.getOrganizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Organization does not match the current context"
+            );
+        }
+
+        return membershipRepository.findByOrganizationId(
+                        context.getOrganizationId()
+                )
                 .stream()
                 .map(MemberResponse::from)
                 .toList();
@@ -49,6 +57,12 @@ public class MembershipService {
 
         if (context == null) {
             throw new IllegalStateException("Organization context not set");
+        }
+
+        if (!context.getOrganizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Organization does not match the current context"
+            );
         }
 
         MembershipRole currentRole = context.getRole();
@@ -80,16 +94,20 @@ public class MembershipService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
+        UUID currentOrganizationId = context.getOrganizationId();
+
         if (membershipRepository.existsByUserIdAndOrganizationId(
                 user.getId(),
-                organizationId
+                currentOrganizationId
         )) {
             throw new IllegalArgumentException(
                     "User is already a member of this organization"
             );
         }
 
-        Organization organization = organizationRepository.findById(organizationId)
+        Organization organization = organizationRepository.findById(
+                        currentOrganizationId
+                )
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
 
         Membership membership = new Membership(

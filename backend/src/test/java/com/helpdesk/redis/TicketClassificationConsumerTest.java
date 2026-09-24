@@ -2,6 +2,7 @@ package com.helpdesk.redis;
 
 import com.helpdesk.ai.client.AiServiceClient;
 import com.helpdesk.ai.client.dto.ClassificationResponse;
+import com.helpdesk.orgs.TenantTransactionExecutor;
 import com.helpdesk.tickets.repository.TicketRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.stream.MapRecord;
@@ -13,6 +14,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -40,13 +42,8 @@ class TicketClassificationConsumerTest {
         TicketRepository ticketRepository =
                 mock(TicketRepository.class);
 
-        TicketClassificationConsumer consumer =
-                new TicketClassificationConsumer(
-                        container,
-                        redisTemplate,
-                        aiServiceClient,
-                        ticketRepository
-                );
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
 
         UUID ticketId =
                 UUID.fromString(
@@ -56,6 +53,22 @@ class TicketClassificationConsumerTest {
         UUID organizationId =
                 UUID.fromString(
                         "8a568ac9-b1b2-41cc-a19a-86de79f83d4e"
+                );
+
+        when(tenantTransactionExecutor.execute(
+                eq(organizationId),
+                any(Supplier.class)
+        )).thenAnswer(invocation ->
+                ((Supplier<Integer>) invocation.getArgument(1)).get()
+        );
+
+        TicketClassificationConsumer consumer =
+                new TicketClassificationConsumer(
+                        container,
+                        redisTemplate,
+                        aiServiceClient,
+                        ticketRepository,
+                        tenantTransactionExecutor
                 );
 
         when(aiServiceClient.classifyTicket(
@@ -150,12 +163,16 @@ class TicketClassificationConsumerTest {
         TicketRepository ticketRepository =
                 mock(TicketRepository.class);
 
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
+
         TicketClassificationConsumer consumer =
                 new TicketClassificationConsumer(
                         container,
                         redisTemplate,
                         aiServiceClient,
-                        ticketRepository
+                        ticketRepository,
+                        tenantTransactionExecutor
                 );
 
         UUID ticketId = UUID.randomUUID();
@@ -233,12 +250,16 @@ class TicketClassificationConsumerTest {
         TicketRepository ticketRepository =
                 mock(TicketRepository.class);
 
+        TenantTransactionExecutor tenantTransactionExecutor =
+                mock(TenantTransactionExecutor.class);
+
         TicketClassificationConsumer consumer =
                 new TicketClassificationConsumer(
                         container,
                         redisTemplate,
                         aiServiceClient,
-                        ticketRepository
+                        ticketRepository,
+                        tenantTransactionExecutor
                 );
 
         UUID ticketId = UUID.randomUUID();

@@ -92,6 +92,24 @@ public class TicketService {
                         "customerId is required when creating a ticket as an agent"
                 );
             }
+
+            Membership customerMembership =
+                    membershipRepository
+                            .findByUserIdAndOrganizationId(
+                                    customerId,
+                                    organizationId
+                            )
+                            .orElseThrow(() ->
+                                    new IllegalArgumentException(
+                                            "Customer is not a member of this organization"
+                                    )
+                            );
+
+            if (customerMembership.getRole() != MembershipRole.CUSTOMER) {
+                throw new IllegalArgumentException(
+                        "Ticket customer must have the CUSTOMER role"
+                );
+            }
         }
 
         Ticket ticket = new Ticket(
