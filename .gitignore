@@ -64,3 +64,6 @@ docker-data/
 *.tmp
 *.temp
 *.swp
+
+# Local runtime storage
+backend/local-storage/
