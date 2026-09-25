@@ -1,4 +1,14 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import {
+  AlertCircle,
+  Clock3,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   createSlaPolicy,
   deleteSlaPolicy,
@@ -10,6 +20,17 @@ import {
 } from '../api/slaPolicies'
 import { useOrganizations } from '../features/organizations/OrganizationContext'
 import { getApiErrorMessage } from '../lib/api-error'
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+  Skeleton,
+  Spinner,
+} from '../components/ui'
 
 const PRIORITIES: TicketPriority[] = [
   'LOW',
@@ -56,14 +77,11 @@ function SlaPoliciesPage() {
   const [policies, setPolicies] = useState<SlaPolicy[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingPolicy, setEditingPolicy] =
     useState<SlaPolicy | null>(null)
-
   const [form, setForm] =
     useState<SlaPolicyRequest>(EMPTY_FORM)
-
   const [isSaving, setIsSaving] = useState(false)
   const [deletingPolicyId, setDeletingPolicyId] =
     useState<string | null>(null)
@@ -109,6 +127,24 @@ function SlaPoliciesPage() {
     }
   }, [activeOrganizationId])
 
+  if (!activeOrganizationId) {
+    return (
+      <EmptyState
+        title="Select an organization"
+        description="Choose an organization from the sidebar to manage SLA policies."
+        icon={<ShieldCheck className="h-6 w-6" />}
+      />
+    )
+  }
+
+  const organizationId = activeOrganizationId
+
+  const existingPriorities = new Set(
+    policies
+      .filter((policy) => policy.id !== editingPolicy?.id)
+      .map((policy) => policy.priority),
+  )
+
   function openCreateForm() {
     setEditingPolicy(null)
     setForm(EMPTY_FORM)
@@ -118,14 +154,12 @@ function SlaPoliciesPage() {
 
   function openEditForm(policy: SlaPolicy) {
     setEditingPolicy(policy)
-
     setForm({
       name: policy.name,
       firstResponseMinutes: policy.firstResponseMinutes,
       resolutionMinutes: policy.resolutionMinutes,
       priority: policy.priority,
     })
-
     setIsFormOpen(true)
     setError(null)
   }
@@ -151,13 +185,9 @@ function SlaPoliciesPage() {
   }
 
   async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
+    event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault()
-
-    if (!activeOrganizationId) {
-      return
-    }
 
     if (!form.name.trim()) {
       setError('Policy name is required.')
@@ -178,7 +208,7 @@ function SlaPoliciesPage() {
     try {
       if (editingPolicy) {
         const updated = await updateSlaPolicy(
-          activeOrganizationId,
+          organizationId,
           editingPolicy.id,
           {
             ...form,
@@ -193,7 +223,7 @@ function SlaPoliciesPage() {
         )
       } else {
         const created = await createSlaPolicy(
-          activeOrganizationId,
+          organizationId,
           {
             ...form,
             name: form.name.trim(),
@@ -217,10 +247,6 @@ function SlaPoliciesPage() {
   }
 
   async function handleDelete(policy: SlaPolicy) {
-    if (!activeOrganizationId) {
-      return
-    }
-
     const confirmed = window.confirm(
       `Delete the "${policy.name}" SLA policy?`,
     )
@@ -234,7 +260,7 @@ function SlaPoliciesPage() {
 
     try {
       await deleteSlaPolicy(
-        activeOrganizationId,
+        organizationId,
         policy.id,
       )
 
@@ -256,177 +282,186 @@ function SlaPoliciesPage() {
     }
   }
 
-  const existingPriorities = new Set(
-    policies
-      .filter((policy) => policy.id !== editingPolicy?.id)
-      .map((policy) => policy.priority),
-  )
-
-  if (!activeOrganizationId) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-semibold">
-          SLA Policies
-        </h1>
-
-        <p className="mt-4 text-slate-400">
-          Select an organization to manage SLA policies.
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            SLA Policies
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-400">
-            Configure response and resolution targets for{' '}
-            {activeOrganization?.name ?? 'this organization'}.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={openCreateForm}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
-        >
-          Add SLA Policy
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow={activeOrganization?.name}
+        title="SLA Policies"
+        description="Configure response and resolution targets for each ticket priority."
+        actions={
+          <Button
+            onClick={openCreateForm}
+            icon={<Plus className="h-4 w-4" />}
+          >
+            Add policy
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="mt-6 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+        <div
+          role="alert"
+          className="mb-6 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
 
       {isLoading ? (
-        <div className="mt-8 text-slate-400">
-          Loading SLA policies...
-        </div>
+        <PolicyListSkeleton />
       ) : policies.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-8 text-center">
-          <h2 className="text-lg font-medium">
-            No SLA policies configured
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-400">
-            Create policies to automatically assign response
-            and resolution deadlines to tickets.
-          </p>
-
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="mt-5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
-          >
-            Create your first policy
-          </button>
-        </div>
+        <Card className="p-5">
+          <EmptyState
+            title="No SLA policies configured"
+            description="Create policies to automatically assign response and resolution deadlines to tickets."
+            icon={<ShieldCheck className="h-6 w-6" />}
+            action={
+              <Button
+                size="sm"
+                onClick={openCreateForm}
+                icon={<Plus className="h-4 w-4" />}
+              >
+                Create your first policy
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-800 bg-slate-950">
-              <tr>
-                <th className="px-5 py-4 font-medium text-slate-300">
-                  Priority
-                </th>
-                <th className="px-5 py-4 font-medium text-slate-300">
-                  Policy
-                </th>
-                <th className="px-5 py-4 font-medium text-slate-300">
-                  First Response
-                </th>
-                <th className="px-5 py-4 font-medium text-slate-300">
-                  Resolution
-                </th>
-                <th className="px-5 py-4 text-right font-medium text-slate-300">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+        <Card className="overflow-hidden">
+          <div className="border-b border-[var(--app-border)] p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-indigo-500/15 p-2.5 text-indigo-500">
+                <Clock3 className="h-5 w-5" />
+              </div>
 
-            <tbody>
-              {policies.map((policy) => (
-                <tr
-                  key={policy.id}
-                  className="border-b border-slate-800 last:border-b-0"
-                >
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium">
-                      {policy.priority}
-                    </span>
-                  </td>
+              <div>
+                <h2 className="font-semibold text-[var(--app-text)]">
+                  Active policies
+                </h2>
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                  {policies.length} configured priority target
+                  {policies.length === 1 ? '' : 's'}.
+                </p>
+              </div>
+            </div>
+          </div>
 
-                  <td className="px-5 py-4 font-medium">
-                    {policy.name}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-300">
-                    {formatDuration(
-                      policy.firstResponseMinutes,
-                    )}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-300">
-                    {formatDuration(
-                      policy.resolutionMinutes,
-                    )}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openEditForm(policy)
-                        }
-                        className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleDelete(policy)
-                        }
-                        disabled={
-                          deletingPolicyId === policy.id
-                        }
-                        className="rounded-lg border border-red-900 px-3 py-1.5 text-xs text-red-300 hover:bg-red-950/50 disabled:opacity-50"
-                      >
-                        {deletingPolicyId === policy.id
-                          ? 'Deleting...'
-                          : 'Delete'}
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="border-b border-[var(--app-border)] bg-[var(--app-surface-muted)]">
+                <tr className="text-xs uppercase tracking-wide text-[var(--app-text-subtle)]">
+                  <th className="px-5 py-3 font-semibold">
+                    Priority
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    Policy
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    First response
+                  </th>
+                  <th className="px-5 py-3 font-semibold">
+                    Resolution
+                  </th>
+                  <th className="px-5 py-3 text-right font-semibold">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody className="divide-y divide-[var(--app-border)]">
+                {policies.map((policy) => (
+                  <tr
+                    key={policy.id}
+                    className="transition-colors hover:bg-[var(--app-surface-muted)]"
+                  >
+                    <td className="px-5 py-4">
+                      <PriorityBadge priority={policy.priority} />
+                    </td>
+
+                    <td className="px-5 py-4 font-medium text-[var(--app-text)]">
+                      {policy.name}
+                    </td>
+
+                    <td className="px-5 py-4 text-[var(--app-text-muted)]">
+                      {formatDuration(policy.firstResponseMinutes)}
+                    </td>
+
+                    <td className="px-5 py-4 text-[var(--app-text-muted)]">
+                      {formatDuration(policy.resolutionMinutes)}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditForm(policy)}
+                          icon={<Pencil className="h-4 w-4" />}
+                        >
+                          <span className="sr-only sm:not-sr-only">
+                            Edit
+                          </span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(policy)}
+                          disabled={
+                            deletingPolicyId === policy.id
+                          }
+                          icon={
+                            deletingPolicyId === policy.id ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            )
+                          }
+                        >
+                          <span className="sr-only sm:not-sr-only">
+                            Delete
+                          </span>
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
-            <div className="flex items-center justify-between">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 sm:items-center sm:p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeForm()
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-t-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sla-form-title"
+          >
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold">
+                <h2
+                  id="sla-form-title"
+                  className="text-lg font-semibold text-[var(--app-text)]"
+                >
                   {editingPolicy
-                    ? 'Edit SLA Policy'
-                    : 'Create SLA Policy'}
+                    ? 'Edit SLA policy'
+                    : 'Create SLA policy'}
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-400">
-                  Set the response and resolution targets.
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                  Set response and resolution targets.
                 </p>
               </div>
 
@@ -434,9 +469,10 @@ function SlaPoliciesPage() {
                 type="button"
                 onClick={closeForm}
                 disabled={isSaving}
-                className="text-xl text-slate-400 hover:text-white"
+                className="rounded-lg p-2 text-[var(--app-text-muted)] hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-text)]"
+                aria-label="Close policy form"
               >
-                ×
+                <X className="h-5 w-5" />
               </button>
             </div>
 
@@ -444,115 +480,91 @@ function SlaPoliciesPage() {
               onSubmit={handleSubmit}
               className="mt-6 space-y-5"
             >
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">
-                  Policy name
-                </label>
+              <Input
+                label="Policy name"
+                value={form.name}
+                onChange={(event) =>
+                  updateForm('name', event.target.value)
+                }
+                placeholder="Standard Support"
+                disabled={isSaving}
+              />
 
-                <input
-                  value={form.name}
+              <Select
+                label="Priority"
+                value={form.priority}
+                onChange={(event) =>
+                  updateForm(
+                    'priority',
+                    event.target.value as TicketPriority,
+                  )
+                }
+                disabled={isSaving}
+              >
+                {PRIORITIES.map((priority) => (
+                  <option
+                    key={priority}
+                    value={priority}
+                    disabled={
+                      !editingPolicy &&
+                      existingPriorities.has(priority)
+                    }
+                  >
+                    {formatPriority(priority)}
+                  </option>
+                ))}
+              </Select>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  label="First response"
+                  type="number"
+                  min="1"
+                  hint="Minutes"
+                  value={form.firstResponseMinutes}
                   onChange={(event) =>
                     updateForm(
-                      'name',
-                      event.target.value,
+                      'firstResponseMinutes',
+                      Number(event.target.value),
                     )
                   }
-                  placeholder="Standard Support"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                  disabled={isSaving}
+                />
+
+                <Input
+                  label="Resolution"
+                  type="number"
+                  min="1"
+                  hint="Minutes"
+                  value={form.resolutionMinutes}
+                  onChange={(event) =>
+                    updateForm(
+                      'resolutionMinutes',
+                      Number(event.target.value),
+                    )
+                  }
+                  disabled={isSaving}
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">
-                  Priority
-                </label>
-
-                <select
-                  value={form.priority}
-                  onChange={(event) =>
-                    updateForm(
-                      'priority',
-                      event.target.value as TicketPriority,
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
-                >
-                  {PRIORITIES.map((priority) => (
-                    <option
-                      key={priority}
-                      value={priority}
-                      disabled={
-                        !editingPolicy &&
-                        existingPriorities.has(priority)
-                      }
-                    >
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-300">
-                    First response (minutes)
-                  </label>
-
-                  <input
-                    type="number"
-                    min="1"
-                    value={form.firstResponseMinutes}
-                    onChange={(event) =>
-                      updateForm(
-                        'firstResponseMinutes',
-                        Number(event.target.value),
-                      )
-                    }
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-300">
-                    Resolution (minutes)
-                  </label>
-
-                  <input
-                    type="number"
-                    min="1"
-                    value={form.resolutionMinutes}
-                    onChange={(event) =>
-                      updateForm(
-                        'resolutionMinutes',
-                        Number(event.target.value),
-                      )
-                    }
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-slate-800 pt-5">
-                <button
+              <div className="flex flex-col-reverse gap-2 border-t border-[var(--app-border)] pt-5 sm:flex-row sm:justify-end">
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={closeForm}
                   disabled={isSaving}
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
                 >
                   Cancel
-                </button>
+                </Button>
 
-                <button
+                <Button
                   type="submit"
-                  disabled={isSaving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                  loading={isSaving}
                 >
-                  {isSaving
-                    ? 'Saving...'
-                    : editingPolicy
-                      ? 'Save Changes'
-                      : 'Create Policy'}
-                </button>
+                  {editingPolicy
+                    ? 'Save changes'
+                    : 'Create policy'}
+                </Button>
               </div>
             </form>
           </div>
@@ -560,6 +572,51 @@ function SlaPoliciesPage() {
       )}
     </div>
   )
+}
+
+function PriorityBadge({
+  priority,
+}: {
+  priority: TicketPriority
+}) {
+  const tone =
+    priority === 'URGENT'
+      ? 'danger'
+      : priority === 'HIGH'
+        ? 'warning'
+        : priority === 'MEDIUM'
+          ? 'info'
+          : 'neutral'
+
+  return (
+    <Badge tone={tone} dot>
+      {formatPriority(priority)}
+    </Badge>
+  )
+}
+
+function PolicyListSkeleton() {
+  return (
+    <Card className="overflow-hidden">
+      <div className="divide-y divide-[var(--app-border)]">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-4 p-5"
+          >
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-4 w-40 flex-1" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function formatPriority(priority: TicketPriority) {
+  return priority.charAt(0) + priority.slice(1).toLowerCase()
 }
 
 export default SlaPoliciesPage
