@@ -8,6 +8,8 @@ import TicketDetailPage from '../pages/TicketDetailPage'
 import KnowledgeBasePage from '../pages/KnowledgeBasePage'
 import SlaPoliciesPage from '../pages/SlaPoliciesPage'
 import AnalyticsPage from '../pages/AnalyticsPage'
+import MembersPage from '../pages/MembersPage'
+import SettingsPage from '../pages/SettingsPage'
 import ProtectedRoute from './ProtectedRoute'
 
 export const router = createBrowserRouter([
@@ -57,6 +59,14 @@ export const router = createBrowserRouter([
           {
             path: 'analytics',
             element: <AnalyticsPage />,
+          },
+          {
+            path: 'members',
+            element: <MembersPage />,
+          },
+          {
+            path: 'settings',
+            element: <SettingsPage />,
           },
         ],
       },
