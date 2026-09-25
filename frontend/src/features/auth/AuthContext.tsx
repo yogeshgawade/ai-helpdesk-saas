@@ -5,8 +5,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { login as loginApi } from '../../api/auth'
-import type { LoginRequest } from '../../types/auth'
+import { login as loginApi, register as registerApi } from '../../api/auth'
+import type { LoginRequest, RegisterRequest } from '../../types/auth'
 
 interface User {
   id: string
@@ -19,6 +19,7 @@ interface AuthContextValue {
   token: string | null
   isAuthenticated: boolean
   login: (request: LoginRequest) => Promise<void>
+  register: (request: RegisterRequest) => Promise<void>
   logout: () => void
 }
 
@@ -70,6 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(response.user)
   }
 
+  async function register(request: RegisterRequest) {
+    const response = await registerApi(request)
+
+    setToken(response.accessToken)
+    setUser(response.user)
+  }
+
   function logout() {
     setToken(null)
     setUser(null)
@@ -82,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated: token !== null,
         login,
+        register,
         logout,
       }}
     >

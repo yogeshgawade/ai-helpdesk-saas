@@ -8,6 +8,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { getMyOrganizations } from '../../api/organizations'
 import type { Organization } from './types'
+import { useAuth } from '../auth/AuthContext'
 
 interface OrganizationContextValue {
   organizations: Organization[]
@@ -28,6 +29,8 @@ export function OrganizationProvider({
 }: {
   children: ReactNode
 }) {
+  const { isAuthenticated } = useAuth()
+
   const [activeOrganizationId, setActiveOrganizationId] =
     useState<string | null>(() =>
       localStorage.getItem(ACTIVE_ORGANIZATION_KEY),
@@ -40,9 +43,15 @@ export function OrganizationProvider({
   } = useQuery({
     queryKey: ['my-organizations'],
     queryFn: getMyOrganizations,
+    enabled: isAuthenticated,
   })
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setActiveOrganizationId(null)
+      return
+    }
+
     if (organizations.length === 0) {
       setActiveOrganizationId(null)
       return
@@ -55,7 +64,7 @@ export function OrganizationProvider({
     if (!storedOrganizationExists) {
       setActiveOrganizationId(organizations[0].id)
     }
-  }, [organizations, activeOrganizationId])
+  }, [organizations, activeOrganizationId, isAuthenticated])
 
   useEffect(() => {
     if (activeOrganizationId) {

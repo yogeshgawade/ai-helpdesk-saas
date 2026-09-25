@@ -6,16 +6,19 @@ import { router } from './routes/router'
 import { queryClient } from './lib/query-client'
 import { AuthProvider } from './features/auth/AuthContext'
 import { OrganizationProvider } from './features/organizations/OrganizationContext'
+import { ThemeProvider } from './features/theme/ThemeContext'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <OrganizationProvider>
-          <RouterProvider router={router} />
-        </OrganizationProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <OrganizationProvider>
+            <RouterProvider router={router} />
+          </OrganizationProvider>
+        </QueryClientProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

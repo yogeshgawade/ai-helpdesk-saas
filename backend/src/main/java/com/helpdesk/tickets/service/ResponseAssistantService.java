@@ -171,6 +171,7 @@ public class ResponseAssistantService {
         return response;
     }
 
+    @Transactional
     public SseEmitter streamResponse(UUID ticketId) {
         UUID organizationId = getCurrentOrganizationId();
         ensureAgentAccess();

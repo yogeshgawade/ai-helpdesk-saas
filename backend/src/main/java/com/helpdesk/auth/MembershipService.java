@@ -48,6 +48,43 @@ public class MembershipService {
                 .toList();
     }
 
+    public java.util.List<MemberSearchResponse> searchAvailableUsers(
+            UUID organizationId,
+            String query
+    ) {
+        OrganizationContext context = OrganizationContextHolder.get();
+
+        if (context == null) {
+            throw new IllegalStateException("Organization context not set");
+        }
+
+        if (!context.getOrganizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Organization does not match the current context"
+            );
+        }
+
+        if (context.getRole() != MembershipRole.OWNER
+                && context.getRole() != MembershipRole.ADMIN) {
+            throw new ForbiddenException(
+                    "Only owners and admins can search users"
+            );
+        }
+
+        if (query == null || query.trim().length() < 2) {
+            return java.util.List.of();
+        }
+
+        return userRepository.searchAvailableUsers(
+                        query.trim(),
+                        context.getOrganizationId()
+                )
+                .stream()
+                .limit(10)
+                .map(MemberSearchResponse::from)
+                .toList();
+    }
+
     @Transactional
     public MemberResponse addMember(
             UUID organizationId,
@@ -120,4 +157,64 @@ public class MembershipService {
 
         return MemberResponse.from(savedMembership);
     }
+    @Transactional
+    public MemberResponse updateMemberRole(
+            UUID organizationId,
+            UUID membershipId,
+            UpdateMemberRoleRequest request
+    ) {
+        OrganizationContext context = OrganizationContextHolder.get();
+
+        if (context == null) {
+            throw new IllegalStateException("Organization context not set");
+        }
+
+        if (!context.getOrganizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Organization does not match the current context"
+            );
+        }
+
+        MembershipRole currentRole = context.getRole();
+
+        if (currentRole != MembershipRole.OWNER
+                && currentRole != MembershipRole.ADMIN) {
+            throw new ForbiddenException(
+                    "Only owners and admins can change member roles"
+            );
+        }
+
+        if (request == null || request.role() == null) {
+            throw new IllegalArgumentException("role is required");
+        }
+
+        if (request.role() == MembershipRole.OWNER) {
+            throw new ForbiddenException(
+                    "Cannot assign OWNER role"
+            );
+        }
+
+        if (request.role() == MembershipRole.ADMIN
+                && currentRole != MembershipRole.OWNER) {
+            throw new ForbiddenException(
+                    "Only owners can assign ADMIN role"
+            );
+        }
+
+        Membership membership = membershipRepository.findById(membershipId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Membership not found"
+                ));
+
+        if (!membership.getOrganization().getId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Membership does not belong to this organization"
+            );
+        }
+
+        membership.setRole(request.role());
+
+        return MemberResponse.from(membershipRepository.save(membership));
+    }
+
 }

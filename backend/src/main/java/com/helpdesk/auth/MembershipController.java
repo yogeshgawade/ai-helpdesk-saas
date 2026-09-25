@@ -25,6 +25,35 @@ public class MembershipController {
         );
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<List<MemberSearchResponse>> searchUsers(
+            @PathVariable UUID organizationId,
+            @RequestParam String query
+    ) {
+        return ResponseEntity.ok(
+                membershipService.searchAvailableUsers(
+                        organizationId,
+                        query
+                )
+        );
+    }
+
+    @PatchMapping("/{membershipId}/role")
+    public ResponseEntity<MemberResponse> updateMemberRole(
+            @PathVariable UUID organizationId,
+            @PathVariable UUID membershipId,
+            @RequestBody UpdateMemberRoleRequest request
+    ) {
+        return ResponseEntity.ok(
+                membershipService.updateMemberRole(
+                        organizationId,
+                        membershipId,
+                        request
+                )
+        );
+    }
+
+
     @PostMapping
     public ResponseEntity<MemberResponse> addMember(
             @PathVariable UUID organizationId,
