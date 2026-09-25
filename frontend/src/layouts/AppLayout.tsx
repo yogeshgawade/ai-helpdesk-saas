@@ -25,7 +25,6 @@ function AppLayout() {
       location.pathname === '/app/tickets'
     ) {
       setActiveOrganizationId(pendingOrganizationId)
-      setPendingOrganizationId(null)
       return
     }
 

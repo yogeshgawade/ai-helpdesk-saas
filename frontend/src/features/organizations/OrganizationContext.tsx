@@ -46,25 +46,6 @@ export function OrganizationProvider({
     enabled: isAuthenticated,
   })
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setActiveOrganizationId(null)
-      return
-    }
-
-    if (organizations.length === 0) {
-      setActiveOrganizationId(null)
-      return
-    }
-
-    const storedOrganizationExists = organizations.some(
-      (organization) => organization.id === activeOrganizationId,
-    )
-
-    if (!storedOrganizationExists) {
-      setActiveOrganizationId(organizations[0].id)
-    }
-  }, [organizations, activeOrganizationId, isAuthenticated])
 
   useEffect(() => {
     if (activeOrganizationId) {
@@ -77,10 +58,19 @@ export function OrganizationProvider({
     }
   }, [activeOrganizationId])
 
-  const activeOrganization =
-    organizations.find(
-      (organization) => organization.id === activeOrganizationId,
-    ) ?? null
+  const resolvedOrganizationId =
+    isAuthenticated && organizations.length > 0
+      ? organizations.some(
+          (organization) =>
+            organization.id === activeOrganizationId,
+        )
+        ? activeOrganizationId
+        : organizations[0].id
+      : null
+
+  const activeOrganization = organizations.find(
+    (organization) => organization.id === resolvedOrganizationId,
+  ) ?? null
 
   return (
     <OrganizationContext.Provider

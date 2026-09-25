@@ -9,6 +9,7 @@ import {
   type TicketPriority,
 } from '../api/slaPolicies'
 import { useOrganizations } from '../features/organizations/OrganizationContext'
+import { getApiErrorMessage } from '../lib/api-error'
 
 const PRIORITIES: TicketPriority[] = [
   'LOW',
@@ -67,28 +68,45 @@ function SlaPoliciesPage() {
   const [deletingPolicyId, setDeletingPolicyId] =
     useState<string | null>(null)
 
-  async function loadPolicies() {
-    if (!activeOrganizationId) {
-      setPolicies([])
-      setIsLoading(false)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const data = await getSlaPolicies(activeOrganizationId)
-      setPolicies(data)
-    } catch {
-      setError('Failed to load SLA policies.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   useEffect(() => {
-    loadPolicies()
+    let cancelled = false
+
+    async function loadPolicies() {
+      if (!activeOrganizationId) {
+        if (!cancelled) {
+          setPolicies([])
+          setIsLoading(false)
+        }
+        return
+      }
+
+      if (!cancelled) {
+        setIsLoading(true)
+        setError(null)
+      }
+
+      try {
+        const data = await getSlaPolicies(activeOrganizationId)
+
+        if (!cancelled) {
+          setPolicies(data)
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Failed to load SLA policies.')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadPolicies()
+
+    return () => {
+      cancelled = true
+    }
   }, [activeOrganizationId])
 
   function openCreateForm() {
@@ -186,12 +204,13 @@ function SlaPoliciesPage() {
       }
 
       closeForm()
-    } catch (requestError: any) {
-      const message =
-        requestError?.response?.data?.message ??
-        'Failed to save SLA policy.'
-
-      setError(message)
+    } catch (requestError: unknown) {
+      setError(
+        getApiErrorMessage(
+          requestError,
+          'Failed to save SLA policy.',
+        ),
+      )
     } finally {
       setIsSaving(false)
     }
@@ -225,12 +244,13 @@ function SlaPoliciesPage() {
             currentPolicy.id !== policy.id,
         ),
       )
-    } catch (requestError: any) {
-      const message =
-        requestError?.response?.data?.message ??
-        'Failed to delete SLA policy.'
-
-      setError(message)
+    } catch (requestError: unknown) {
+      setError(
+        getApiErrorMessage(
+          requestError,
+          'Failed to delete SLA policy.',
+        ),
+      )
     } finally {
       setDeletingPolicyId(null)
     }

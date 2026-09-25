@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   generateAnalyticsAiInsight,
@@ -36,7 +36,7 @@ function AnalyticsPage() {
     useOrganizations()
 
   const [dateRange, setDateRange] = useState<DateRange>('30')
-  const [aiInsight, setAiInsight] = useState<{
+  const [generatedInsight, setGeneratedInsight] = useState<{
     insight: string
     model: string
   } | null>(null)
@@ -64,17 +64,12 @@ function AnalyticsPage() {
         to,
       ),
     onSuccess: (data) => {
-      setAiInsight({
+      setGeneratedInsight({
         insight: data.insight,
         model: data.model,
       })
     },
   })
-
-  useEffect(() => {
-    setAiInsight(null)
-    generateInsightMutation.reset()
-  }, [activeOrganizationId, from, to])
 
   const {
     data: persistedAiInsight,
@@ -94,16 +89,14 @@ function AnalyticsPage() {
     enabled: Boolean(activeOrganizationId),
   })
 
-  useEffect(() => {
-    if (persistedAiInsight) {
-      setAiInsight({
-        insight: persistedAiInsight.insight,
-        model: persistedAiInsight.model,
-      })
-    } else {
-      setAiInsight(null)
-    }
-  }, [persistedAiInsight])
+  const aiInsight = generatedInsight ?? (
+    persistedAiInsight
+      ? {
+          insight: persistedAiInsight.insight,
+          model: persistedAiInsight.model,
+        }
+      : null
+  )
 
   const {
     data: analytics,
@@ -188,7 +181,7 @@ function AnalyticsPage() {
           value={dateRange}
           onChange={(event) => {
             setDateRange(event.target.value as DateRange)
-            setAiInsight(null)
+            setGeneratedInsight(null)
             generateInsightMutation.reset()
           }}
           className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none"
