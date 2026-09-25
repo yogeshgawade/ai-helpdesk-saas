@@ -134,7 +134,10 @@ function KnowledgeBasePage() {
     },
   })
 
-  const documents = documentsQuery.data ?? []
+  const documents = useMemo(
+    () => documentsQuery.data ?? [],
+    [documentsQuery.data],
+  )
 
   const filteredDocuments = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
