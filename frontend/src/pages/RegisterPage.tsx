@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthContext'
+import { Button, Card } from '../components/ui'
 
 function RegisterPage() {
   const { register } = useAuth()
@@ -11,181 +13,274 @@ function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {}
+
+    if (!name.trim()) {
+      errors.name = 'Name is required'
+    } else if (name.trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters'
+    }
+
+    if (!email.trim()) {
+      errors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Please enter a valid email address'
+    }
+
+    if (!password) {
+      errors.password = 'Password is required'
+    } else if (password.length < 8) {
+      errors.password = 'Password must be at least 8 characters'
+    } else if (!/[A-Z]/.test(password)) {
+      errors.password = 'Password must contain at least one uppercase letter'
+    } else if (!/[a-z]/.test(password)) {
+      errors.password = 'Password must contain at least one lowercase letter'
+    } else if (!/[0-9]/.test(password)) {
+      errors.password = 'Password must contain at least one number'
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password'
+    } else if (password !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match'
+    }
+
+    setFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     setError('')
+    setFieldErrors({})
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.')
-      return
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (!validateForm()) {
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      await register({
-        name: name.trim(),
-        email: email.trim(),
-        password,
-      })
-
+      await register({ email, password, name: name.trim() })
       navigate('/app/dashboard', { replace: true })
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message
-      ) {
-        setError(error.message)
-      } else {
-        setError('Registration failed. Please try again.')
-      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-white">
-            AI Helpdesk
+    <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 py-12 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md p-8">
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600">
+            <User className="h-6 w-6 text-white" />
+          </div>
+          <h1 className="mt-4 text-2xl font-bold text-[var(--app-text)]">
+            Create an account
           </h1>
-          <p className="mt-2 text-slate-400">
-            Create your account
+          <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+            Get started with AI Helpdesk
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
-        >
-          <div className="space-y-5">
-            <div>
-              <label
-                htmlFor="name"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Name
-              </label>
+        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          {error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400" role="alert">
+              {error}
+            </div>
+          )}
 
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-[var(--app-text)]">
+              Full name
+            </label>
+            <div className="mt-1.5 relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <User className="h-5 w-5 text-[var(--app-text-muted)]" />
+              </div>
               <input
                 id="name"
+                name="name"
                 type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-                maxLength={255}
                 autoComplete="name"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
-                placeholder="Your name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  if (fieldErrors.name) {
+                    setFieldErrors({ ...fieldErrors, name: '' })
+                  }
+                }}
+                className={`block w-full rounded-lg border bg-[var(--app-surface)] py-2.5 pl-10 pr-3 text-sm text-[var(--app-text)] placeholder-[var(--app-text-muted)] outline-none transition-colors focus:ring-2 focus:ring-indigo-500 ${
+                  fieldErrors.name
+                    ? 'border-red-500/50 focus:border-red-500'
+                    : 'border-[var(--app-border)] focus:border-indigo-500'
+                }`}
+                placeholder="John Doe"
               />
             </div>
+            {fieldErrors.name && (
+              <p className="mt-1.5 text-xs text-red-400">{fieldErrors.name}</p>
+            )}
+          </div>
 
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Email
-              </label>
-
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-[var(--app-text)]">
+              Email address
+            </label>
+            <div className="mt-1.5 relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Mail className="h-5 w-5 text-[var(--app-text-muted)]" />
+              </div>
               <input
                 id="email"
+                name="email"
                 type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
                 autoComplete="email"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (fieldErrors.email) {
+                    setFieldErrors({ ...fieldErrors, email: '' })
+                  }
+                }}
+                className={`block w-full rounded-lg border bg-[var(--app-surface)] py-2.5 pl-10 pr-3 text-sm text-[var(--app-text)] placeholder-[var(--app-text-muted)] outline-none transition-colors focus:ring-2 focus:ring-indigo-500 ${
+                  fieldErrors.email
+                    ? 'border-red-500/50 focus:border-red-500'
+                    : 'border-[var(--app-border)] focus:border-indigo-500'
+                }`}
                 placeholder="you@example.com"
               />
             </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Password
-              </label>
-
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                minLength={8}
-                maxLength={100}
-                autoComplete="new-password"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
-                placeholder="At least 8 characters"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirm-password"
-                className="mb-2 block text-sm font-medium text-slate-200"
-              >
-                Confirm password
-              </label>
-
-              <input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) =>
-                  setConfirmPassword(event.target.value)
-                }
-                required
-                minLength={8}
-                maxLength={100}
-                autoComplete="new-password"
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
-                placeholder="Re-enter your password"
-              />
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-lg border border-red-900 bg-red-950/50 px-3 py-2.5 text-sm text-red-300"
-              >
-                {error}
-              </div>
+            {fieldErrors.email && (
+              <p className="mt-1.5 text-xs text-red-400">{fieldErrors.email}</p>
             )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-lg bg-white px-4 py-2.5 font-medium text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? 'Creating account...' : 'Create account'}
-            </button>
           </div>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="font-medium text-white hover:underline"
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-[var(--app-text)]">
+              Password
+            </label>
+            <div className="mt-1.5 relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Lock className="h-5 w-5 text-[var(--app-text-muted)]" />
+              </div>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (fieldErrors.password) {
+                    setFieldErrors({ ...fieldErrors, password: '' })
+                  }
+                }}
+                className={`block w-full rounded-lg border bg-[var(--app-surface)] py-2.5 pl-10 pr-10 text-sm text-[var(--app-text)] placeholder-[var(--app-text-muted)] outline-none transition-colors focus:ring-2 focus:ring-indigo-500 ${
+                  fieldErrors.password
+                    ? 'border-red-500/50 focus:border-red-500'
+                    : 'border-[var(--app-border)] focus:border-indigo-500'
+                }`}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+            {fieldErrors.password && (
+              <p className="mt-1.5 text-xs text-red-400">{fieldErrors.password}</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--app-text)]">
+              Confirm password
+            </label>
+            <div className="mt-1.5 relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Lock className="h-5 w-5 text-[var(--app-text-muted)]" />
+              </div>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value)
+                  if (fieldErrors.confirmPassword) {
+                    setFieldErrors({ ...fieldErrors, confirmPassword: '' })
+                  }
+                }}
+                className={`block w-full rounded-lg border bg-[var(--app-surface)] py-2.5 pl-10 pr-10 text-sm text-[var(--app-text)] placeholder-[var(--app-text-muted)] outline-none transition-colors focus:ring-2 focus:ring-indigo-500 ${
+                  fieldErrors.confirmPassword
+                    ? 'border-red-500/50 focus:border-red-500'
+                    : 'border-[var(--app-border)] focus:border-indigo-500'
+                }`}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+            {fieldErrors.confirmPassword && (
+              <p className="mt-1.5 text-xs text-red-400">{fieldErrors.confirmPassword}</p>
+            )}
+          </div>
+
+          <div>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              className="w-full"
+              disabled={isSubmitting}
             >
-              Sign in
-            </Link>
-          </p>
+              {isSubmitting ? 'Creating account...' : 'Create account'}
+            </Button>
+          </div>
+
+          <div className="text-center">
+            <p className="text-sm text-[var(--app-text-muted)]">
+              Already have an account?{' '}
+              <Link
+                to="/login"
+                className="font-medium text-indigo-500 hover:text-indigo-400"
+              >
+                Sign in
+              </Link>
+            </p>
+          </div>
         </form>
-      </div>
+      </Card>
     </div>
   )
 }
