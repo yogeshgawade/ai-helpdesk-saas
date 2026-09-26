@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { login as loginApi, register as registerApi } from '../../api/auth'
 import type { LoginRequest, RegisterRequest } from '../../types/auth'
+import { queryClient } from '../../lib/query-client'
 
 interface User {
   id: string
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
+const ACTIVE_ORGANIZATION_KEY = 'active_organization_id'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(
@@ -67,6 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(request: LoginRequest) {
     const response = await loginApi(request)
 
+    queryClient.clear()
+    localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
     setToken(response.accessToken)
     setUser(response.user)
   }
@@ -74,11 +78,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function register(request: RegisterRequest) {
     const response = await registerApi(request)
 
+    queryClient.clear()
+    localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
     setToken(response.accessToken)
     setUser(response.user)
   }
 
   function logout() {
+    queryClient.clear()
+    localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
     setToken(null)
     setUser(null)
   }
