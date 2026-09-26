@@ -1,10 +1,13 @@
 import {
   Menu,
+  Moon,
   Search,
+  Sun,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { NotificationBell } from '../components/NotificationBell'
 import UserMenu from '../components/UserMenu'
+import { useTheme } from '../features/theme/ThemeContext'
 
 interface TopBarProps {
   onMenuClick: () => void
@@ -22,6 +25,7 @@ const pageTitles: Record<string, string> = {
 
 function TopBar({ onMenuClick }: TopBarProps) {
   const location = useLocation()
+  const { theme, toggleTheme } = useTheme()
   const isTicketDetail = /^\/app\/tickets\/[^/]+$/.test(
     location.pathname,
   )
@@ -63,6 +67,19 @@ function TopBar({ onMenuClick }: TopBarProps) {
           <kbd className="ml-3 rounded border border-[var(--app-border)] px-1.5 py-0.5 text-[10px]">
             /
           </kbd>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-2 text-[var(--app-text-muted)] transition-colors hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)]"
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
         </button>
 
         <div className="relative">

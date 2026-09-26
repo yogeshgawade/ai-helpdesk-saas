@@ -7,6 +7,8 @@ import { queryClient } from './lib/query-client'
 import { AuthProvider } from './features/auth/AuthContext'
 import { OrganizationProvider } from './features/organizations/OrganizationContext'
 import { ThemeProvider } from './features/theme/ThemeContext'
+import { ToastProvider } from './features/toast/ToastContext'
+import { ToastContainer } from './components/ToastContainer'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
@@ -15,7 +17,10 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
           <OrganizationProvider>
-            <RouterProvider router={router} />
+            <ToastProvider>
+              <RouterProvider router={router} />
+              <ToastContainer />
+            </ToastProvider>
           </OrganizationProvider>
         </QueryClientProvider>
       </AuthProvider>
