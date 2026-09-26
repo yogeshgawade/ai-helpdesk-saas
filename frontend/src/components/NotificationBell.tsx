@@ -108,7 +108,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white hover:bg-slate-700"
+        className="relative rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-2 text-[var(--app-text-muted)] transition-colors hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)]"
         aria-label="Notifications"
       >
         🔔
@@ -121,12 +121,12 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-96 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-            <h2 className="font-semibold text-white">Notifications</h2>
+        <div className="absolute right-0 z-50 mt-2 w-96 overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--app-border)] px-4 py-3">
+            <h2 className="font-semibold text-[var(--app-text)]">Notifications</h2>
 
             {unreadCount > 0 && (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-[var(--app-text-muted)]">
                 {unreadCount} unread
               </span>
             )}
@@ -134,7 +134,7 @@ export function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {notificationsQuery.isLoading && (
-              <div className="px-4 py-6 text-sm text-slate-400">
+              <div className="px-4 py-6 text-sm text-[var(--app-text-muted)]">
                 Loading notifications...
               </div>
             )}
@@ -148,7 +148,7 @@ export function NotificationBell() {
             {!notificationsQuery.isLoading &&
               !notificationsQuery.isError &&
               notifications.length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-slate-400">
+                <div className="px-4 py-8 text-center text-sm text-[var(--app-text-muted)]">
                   No notifications yet.
                 </div>
               )}
@@ -158,23 +158,23 @@ export function NotificationBell() {
                 key={notification.id}
                 type="button"
                 onClick={() => handleNotificationClick(notification)}
-                className={`block w-full border-b border-slate-800 px-4 py-3 text-left hover:bg-slate-800 ${
+                className={`block w-full border-b border-[var(--app-border)] px-4 py-3 text-left transition-colors hover:bg-[var(--app-surface-muted)] ${
                   notification.readAt === null
-                    ? 'bg-slate-800/60'
-                    : 'bg-slate-900'
+                    ? 'bg-[var(--app-surface-muted)]'
+                    : 'bg-[var(--app-surface)]'
                 }`}
               >
                 <div className="flex gap-3">
                   {notification.readAt === null && (
-                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-400" />
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                   )}
 
                   <div className="min-w-0">
-                    <p className="text-sm text-white">
+                    <p className="text-sm text-[var(--app-text)]">
                       {getNotificationText(notification)}
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-[var(--app-text-muted)]">
                       {formatNotificationTime(notification.createdAt)}
                     </p>
                   </div>
