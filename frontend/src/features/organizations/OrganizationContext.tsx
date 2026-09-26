@@ -1,7 +1,7 @@
 import {
   createContext,
   useContext,
-  useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react'
@@ -22,55 +22,63 @@ interface OrganizationContextValue {
 const OrganizationContext =
   createContext<OrganizationContextValue | undefined>(undefined)
 
-const ACTIVE_ORGANIZATION_KEY = 'active_organization_id'
-
 export function OrganizationProvider({
   children,
 }: {
   children: ReactNode
 }) {
-  const { isAuthenticated } = useAuth()
+  const { user, isAuthenticated } = useAuth()
 
-  const [activeOrganizationId, setActiveOrganizationId] =
-    useState<string | null>(() =>
-      localStorage.getItem(ACTIVE_ORGANIZATION_KEY),
-    )
+  const [selectedOrganizationId, setSelectedOrganizationId] =
+    useState<string | null>(null)
 
   const {
     data: organizations = [],
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['my-organizations'],
+    queryKey: ['my-organizations', user?.id ?? null],
     queryFn: getMyOrganizations,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && user !== null,
   })
 
-
-  useEffect(() => {
-    if (activeOrganizationId) {
-      localStorage.setItem(
-        ACTIVE_ORGANIZATION_KEY,
-        activeOrganizationId,
-      )
-    } else {
-      localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
+  const activeOrganizationId = useMemo(() => {
+    if (!isAuthenticated || organizations.length === 0) {
+      return null
     }
-  }, [activeOrganizationId])
 
-  const resolvedOrganizationId =
-    isAuthenticated && organizations.length > 0
-      ? organizations.some(
-          (organization) =>
-            organization.id === activeOrganizationId,
-        )
-        ? activeOrganizationId
-        : organizations[0].id
-      : null
+    const selectedOrganizationExists = organizations.some(
+      (organization) =>
+        organization.id === selectedOrganizationId,
+    )
 
-  const activeOrganization = organizations.find(
-    (organization) => organization.id === resolvedOrganizationId,
-  ) ?? null
+    return selectedOrganizationExists
+      ? selectedOrganizationId
+      : organizations[0].id
+  }, [
+    isAuthenticated,
+    organizations,
+    selectedOrganizationId,
+  ])
+
+  const activeOrganization = useMemo(
+    () =>
+      organizations.find(
+        (organization) =>
+          organization.id === activeOrganizationId,
+      ) ?? null,
+    [organizations, activeOrganizationId],
+  )
+
+  function setActiveOrganizationId(organizationId: string) {
+    const organizationExists = organizations.some(
+      (organization) => organization.id === organizationId,
+    )
+
+    if (organizationExists) {
+      setSelectedOrganizationId(organizationId)
+    }
+  }
 
   return (
     <OrganizationContext.Provider
