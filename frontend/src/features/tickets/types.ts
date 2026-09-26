@@ -26,6 +26,10 @@ export interface Ticket {
   createdAt: string
   updatedAt: string
   resolvedAt: string | null
+  firstResponseDueAt: string | null
+  resolutionDueAt: string | null
+  slaFirstResponseBreached: boolean
+  slaResolutionBreached: boolean
 }
 
 export interface TicketMessage {
