@@ -1,373 +1,157 @@
-# AI-Powered Multi-Tenant Helpdesk SaaS
+# AI Helpdesk SaaS
 
-A multi-tenant helpdesk SaaS with AI-powered response assistance, semantic knowledge base search, and real-time collaboration.
+A multi-tenant support desk with ticket workflows, a document-backed knowledge base, and AI assistance. The Java backend owns application state and tenant access; a separate Python service handles embeddings and LLM requests.
 
 ## Architecture
 
-The system is a modular monolith with a separate AI service:
-
-- **Spring Boot API**: Core business logic, authentication, ticket management, multi-tenancy
-- **FastAPI AI Service**: LLM integration, document processing, embeddings, RAG pipeline
-- **React + TypeScript Frontend**: Single-page application with real-time updates
-- **PostgreSQL + pgvector**: Relational database with vector similarity search
-- **Redis**: Job queue (Streams), rate limiting, WebSocket session management
-
 ```mermaid
-flowchart TB
-    subgraph Client
-        FE[React SPA]
-    end
-
-    FE -->|REST + JWT| API[Spring Boot API]
-    FE -->|WebSocket| API
-
-    API -->|REST| AI[FastAPI AI Service]
-    API --> PG[(PostgreSQL + pgvector)]
-    API --> REDIS[(Redis)]
-
-    API -->|enqueue| QUEUE[[Redis Streams]]
-    QUEUE --> WORKER[Background Workers]
-    WORKER --> AI
-    WORKER --> PG
-
-    AI --> PG
+flowchart LR
+    Browser[React SPA] -->|REST + JWT| API[Spring Boot API]
+    Browser -->|Authenticated WebSocket| API
+    API -->|HTTP requests and streams| AI[FastAPI AI service]
+    API --> DB[(PostgreSQL 16 + pgvector)]
+    API --> Redis[(Redis 7)]
+    Redis -->|Streams| Workers[Classification and summary consumers]
+    Workers --> AI
+    Workers --> DB
+    AI --> Embed[Local sentence-transformer embeddings]
+    AI --> Gemini[Google Gemini API]
 ```
 
-## Key Features
+Ticket workflows, knowledge-base document processing, semantic search, analytics, and response suggestions are initiated synchronously through the backend. Ticket classification and conversation summaries are queued on Redis Streams and processed by backend consumers. Response suggestions can stream to the browser over SSE. The AI service does not connect directly to the application database.
 
-### Implemented
+## Implemented Features
 
-**Authentication & Multi-Tenancy**
-- Email/password authentication with JWT
-- Role-based access control (OWNER, ADMIN, AGENT, CUSTOMER)
-- Organization membership system
-- PostgreSQL Row-Level Security (RLS) for tenant isolation
-- Tenant context propagation for all database operations
+- Email/password registration and login with BCrypt password hashing, short-lived stateless JWTs, and organization roles (`OWNER`, `ADMIN`, `AGENT`, `CUSTOMER`).
+- Organization-scoped ticket creation, filtering, updates, messages, internal notes, assignment, and cursor pagination over `(created_at, id)`.
+- Organization membership checks plus PostgreSQL transaction-local tenant context and forced RLS policies on tenant-owned tables.
+- Knowledge-base upload, local filesystem storage, extraction from PDF, DOCX, TXT, and Markdown, paragraph-aware chunking, 384-dimensional embeddings, and organization-filtered pgvector cosine search.
+- RAG answers with source-chunk citations, and ticket response suggestions with streamed output and an approval-before-send endpoint. The response-assistant prompt treats ticket and knowledge-base content as untrusted input; this is prompt guidance, not a guarantee against prompt injection.
+- Redis Stream workers for ticket classification on creation and ticket summarization after public messages. Workers acknowledge successful jobs, retry failures, recover stale pending messages, and move exhausted jobs to dead-letter streams.
+- Priority-based first-response and resolution targets, a one-minute breach checker, and notifications to assigned agents.
+- Date-filtered support analytics, persisted AI-generated insights, Redis-backed rate limits on selected auth/AI/search routes, organization WebSocket events, and in-app notifications.
 
-**Ticket Management**
-- Full CRUD operations for tickets and messages
-- Cursor-based pagination for efficient large-scale listing
-- Internal notes (agent-only visibility)
-- Agent assignment and priority/status management
-- Real-time updates via WebSocket (ticket.created, ticket.updated, message.created)
+The frontend contains login/register, dashboard, ticket list/detail, knowledge-base, SLA policy, analytics, organization member, and settings views. It uses React Query for server state and connects to the backend REST and WebSocket APIs.
 
-**AI-Powered Response Assistant**
-- RAG-based response suggestions with citations
-- Streaming response generation via Server-Sent Events
-- Similarity threshold filtering to exclude irrelevant context
-- Prompt injection protection (untrusted data marking)
-- Human approval workflow before sending AI-generated responses
+## Technology
 
-**Knowledge Base**
-- Document upload (PDF, text files)
-- Automatic text extraction and chunking
-- Embedding generation with local model (BAAI/bge-small-en-v1.5)
-- pgvector storage with HNSW index for similarity search
-- Document status tracking (PROCESSING, READY, FAILED)
-- Semantic search with organization-scoped filtering
+| Area | Versions and components |
+| --- | --- |
+| Backend | Java 21, Spring Boot 4.1.1, Spring Security, Spring Data JPA, Flyway |
+| Database and queue | PostgreSQL 16 (`pgvector/pgvector:pg16`), Redis 7 (`redis:7-alpine`) |
+| AI service | Python 3.12, FastAPI and Uvicorn (not version-pinned in `requirements.txt`), Sentence Transformers, Google GenAI SDK |
+| Embeddings and LLM | `BAAI/bge-small-en-v1.5` (384 dimensions), Gemini provider implementation |
+| Frontend | React 19.2.8, TypeScript 6.0.2, Vite 8.3.0, TanStack Query, React Router 7 |
+| Local infrastructure | Docker Compose; local filesystem document storage |
 
-**Async AI Processing**
-- Redis Streams for job queuing
-- Async ticket classification (category, priority, sentiment)
-- Async ticket summarization for long threads
-- Consumer groups with retry logic and dead-letter queues
-- SLA breach monitoring scheduler
+Python dependencies are listed without version pins. Frontend dependencies use the ranges recorded in `frontend/package.json`.
 
-**SLA Management**
-- Configurable SLA policies per priority level
-- First response and resolution deadline tracking
-- SLA breach detection and monitoring
-- Dashboard with SLA risk indicators
+## Engineering Notes
 
-**Analytics**
-- Ticket volume and resolution time metrics
-- Agent workload tracking
-- AI-generated insights for trend analysis
-- Time-series data for dashboard visualization
-
-**Rate Limiting**
-- Redis-based rate limiting
-- Per-IP limits on auth endpoints
-- Per-user limits on AI endpoints
-- Configurable windows and thresholds
-
-## Technology Stack
-
-**Backend**
-- Java 21, Spring Boot 3
-- Spring Security, Spring Data JPA
-- PostgreSQL 16 with pgvector extension
-- Redis 7
-- Flyway migrations
-
-**AI Service**
-- Python 3.12, FastAPI
-- HuggingFace Transformers (local embeddings)
-- Google Gemini API (LLM provider)
-- Custom chunking and document extraction
-
-**Frontend**
-- React 18, TypeScript
-- Vite
-- React Query (TanStack Query)
-- React Router
-- Lucide React icons
-
-**Infrastructure**
-- Docker Compose for local development
-- Local filesystem storage (documents)
-- No cloud deployment configured
+- The backend is organized as a modular Spring application, with the AI workload isolated behind an HTTP service boundary.
+- PostgreSQL is the source of truth for application data and vectors. Migration V2 changes the embedding column and HNSW index to 384 dimensions; vector search uses cosine distance and organization filtering.
+- The app database role is created without `BYPASSRLS`. Organization membership is checked at the request boundary; a transaction listener sets `app.current_org_id` transaction-locally for database policies.
+- Redis Streams handle classification and summaries that do not need to block the user request. Upload extraction and per-chunk embedding currently happen inline in the upload transaction.
+- Ticket cursors encode the sort order, timestamp, and UUID tie-breaker. The frontend consumes pages through an infinite query.
+- WebSocket session subscriptions are held in process memory. The backend emits ticket and message events; the browser invalidates ticket/message queries and notification queries for supported event types.
 
 ## Project Structure
 
-```
-ai-helpdesk-saas/
-├── backend/                 # Spring Boot API
-│   ├── src/main/java/com/helpdesk/
-│   │   ├── auth/           # Authentication, JWT, RBAC
-│   │   ├── tickets/        # Ticket management
-│   │   ├── kb/             # Knowledge base & RAG
-│   │   ├── ai/             # AI service client
-│   │   ├── redis/          # Async job processing
-│   │   ├── sla/            # SLA policies & monitoring
-│   │   ├── analytics/      # Analytics & insights
-│   │   ├── websocket/      # Real-time updates
-│   │   ├── orgs/           # Multi-tenancy context
-│   │   ├── storage/        # Local document storage
-│   │   └── config/         # Spring configuration
-│   └── src/main/resources/
-│       └── db/migration/   # Flyway migrations
-├── ai-service/             # FastAPI AI Service
-│   ├── app/
-│   │   ├── llm/           # LLM provider abstraction
-│   │   ├── services/      # RAG, classification, summarization
-│   │   └── models/        # Pydantic models
-│   └── tests/             # Unit tests
-├── frontend/               # React SPA
-│   ├── src/
-│   │   ├── pages/         # Route components
-│   │   ├── features/      # Feature modules
-│   │   ├── api/           # API clients
-│   │   └── components/    # UI components
-└── docker-compose.yml      # Local development
+```text
+backend/       Spring Boot API, services, migrations, and JUnit tests
+ai-service/    FastAPI app, LLM providers, extraction, embeddings, and pytest tests
+frontend/      React SPA, routes, pages, and API clients
+infrastructure/postgres/init/  PostgreSQL application-role initialization
+docker-compose.yml             PostgreSQL, Redis, backend, and AI service
 ```
 
 ## Local Setup
 
-### Prerequisites
-- Docker and Docker Compose
-- Java 21 (for local backend development)
-- Node.js 20+ (for local frontend development)
-- Python 3.12 (for local AI service development)
+Prerequisites: Docker Compose, Java 21, Node.js/npm, and Python 3.12 if running the AI service outside Docker.
 
-### Environment Variables
+1. Copy `.env.example` to `.env` and set database passwords, `APP_JWT_SECRET`, `LLM_PROVIDER=gemini`, `LLM_FALLBACK_MODEL`, and `GEMINI_API_KEY`:
 
-Create a `.env` file in the repository root:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-# Database
-POSTGRES_PASSWORD=your_secure_password
-APP_DB_PASSWORD=your_app_password
+   The Compose file passes `LLM_FALLBACK_MODEL` as the AI service's `LLM_MODEL` as well as its fallback model.
+2. Build the backend JAR before building its image; the backend Dockerfile copies this prebuilt artifact:
 
-# JWT
-APP_JWT_SECRET=your_jwt_secret_key
+   ```bash
+   cd backend
+   ./mvnw -DskipTests package
+   cd ..
+   docker compose up --build
+   ```
 
-# CORS
-APP_CORS_ALLOWED_ORIGIN=http://localhost:5173
+Compose starts PostgreSQL on `5432`, Redis on `6379`, the backend on `8080`, and the AI service on `8000`. It does not start the frontend. PostgreSQL and Redis have health checks; the backend depends on both. The AI service requires the Gemini settings above during startup.
 
-# AI Service
-LLM_PROVIDER=gemini
-LLM_MODEL=gemini-1.5-flash
-LLM_FALLBACK_MODEL=gemini-1.5-flash
-GEMINI_API_KEY=your_gemini_api_key
-```
+3. In another terminal, start the SPA:
 
-### Running the Application
+   ```bash
+   cd frontend
+   npm ci
+   npm run dev
+   ```
 
-1. Start all services:
-```bash
-docker compose up -d
-```
+Vite serves the app at `http://localhost:5173`. The frontend defaults to API `http://localhost:8080` and WebSocket `ws://localhost:8080`; `VITE_API_BASE_URL` and `VITE_WS_BASE_URL` can override those defaults.
 
-2. Wait for services to be healthy (Postgres and Redis have healthchecks)
+Uploaded knowledge-base files are stored on the backend's local filesystem, mounted by Compose at `backend/local-storage`. No S3 integration is configured.
 
-3. Access the application:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8080
-- AI Service: http://localhost:8000
-- API Health: http://localhost:8080/actuator/health
+## Configuration
 
-### Local Development
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` | Compose/PostgreSQL | Database administrator and Flyway password |
+| `APP_DB_PASSWORD` | Compose/PostgreSQL | Password for the restricted `helpdesk_app` role |
+| `APP_JWT_SECRET` | Backend | Signs JWTs |
+| `APP_CORS_ALLOWED_ORIGIN` | Backend | Allowed browser origin; defaults to `http://localhost:5173` |
+| `LLM_PROVIDER` | AI service | Currently supported value: `gemini` |
+| `LLM_MODEL` | AI service | Primary model for a directly configured AI process; Compose sets it from `LLM_FALLBACK_MODEL` |
+| `LLM_FALLBACK_MODEL` | AI service/Compose | Gemini fallback model; also passed as Compose's primary model |
+| `GEMINI_API_KEY` | AI service | Gemini API credential |
+| `EMBEDDING_DEVICE` | AI service | Sentence Transformers device; defaults to `cpu` |
 
-**Backend (Spring Boot)**
-```bash
-cd backend
-./mvnw spring-boot:run
-```
+`.env.example` lists the Compose-facing variables. The backend's local defaults expect PostgreSQL at `localhost:5432`, Redis at `localhost:6379`, and the AI service at `http://ai-service:8000`; when running the backend directly on the host, override `APP_AI_SERVICE_URL` to `http://localhost:8000`.
 
-**Frontend (React)**
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Running Services Directly
 
-**AI Service (FastAPI)**
-```bash
-cd ai-service
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-## Database Schema
-
-Key tables:
-- `organizations`, `users`, `memberships` - Multi-tenancy and auth
-- `tickets`, `ticket_messages`, `ticket_attachments` - Ticket data
-- `knowledge_base_documents`, `kb_chunks` - Knowledge base with embeddings
-- `ai_classifications`, `ai_generations` - AI outputs
-- `sla_policies` - SLA configuration
-- `notifications` - In-app notifications
-- `audit_logs` - System audit trail
-
-Tenant isolation: All tenant-scoped tables have `organization_id` as the leading column in indexes. RLS policies enforce tenant isolation at the database layer.
-
-Vector search: `kb_chunks` uses pgvector with HNSW index for similarity search. Organization filtering happens before vector search to prevent cross-tenant data leakage.
-
-## API Endpoints
-
-**Authentication**
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `POST /api/auth/websocket-ticket` - WebSocket authentication
-
-**Tickets**
-- `GET /api/orgs/{orgId}/tickets` - List tickets (cursor pagination)
-- `POST /api/orgs/{orgId}/tickets` - Create ticket
-- `GET /api/orgs/{orgId}/tickets/{id}` - Get ticket details
-- `PATCH /api/orgs/{orgId}/tickets/{id}` - Update ticket
-- `POST /api/orgs/{orgId}/tickets/{id}/messages` - Add message
-- `GET /api/orgs/{orgId}/tickets/{id}/messages` - List messages
-
-**AI Response Assistant**
-- `POST /api/orgs/{orgId}/tickets/{id}/ai/suggest-response` - Generate response
-- `POST /api/orgs/{orgId}/tickets/{id}/ai/stream-response` - Stream response (SSE)
-- `POST /api/orgs/{orgId}/tickets/{id}/ai/approve-response` - Approve and send
-
-**Knowledge Base**
-- `POST /api/orgs/{orgId}/kb/documents` - Upload document
-- `GET /api/orgs/{orgId}/kb/documents` - List documents
-- `GET /api/orgs/{orgId}/kb/search` - Semantic search
-- `POST /api/orgs/{orgId}/kb/rag` - RAG query
-
-**SLA Policies**
-- `GET /api/orgs/{orgId}/sla-policies` - List policies
-- `POST /api/orgs/{orgId}/sla-policies` - Create policy
-- `PUT /api/orgs/{orgId}/sla-policies/{id}` - Update policy
-- `DELETE /api/orgs/{orgId}/sla-policies/{id}` - Delete policy
-
-**Analytics**
-- `GET /api/orgs/{orgId}/analytics` - Overview metrics
-- `POST /api/orgs/{orgId}/analytics/ai-insight` - Generate AI insight
+The backend can be run from `backend/` with `./mvnw spring-boot:run` once PostgreSQL, Redis, credentials, and the AI service are configured. The AI service can be run from `ai-service/` after installing `requirements.txt` into a Python 3.12 environment, setting `LLM_PROVIDER` and `GEMINI_API_KEY`, and running `uvicorn app.main:app --reload --port 8000`.
 
 ## Testing
 
-**Backend**
+Run each command from the repository root in its own terminal:
+
 ```bash
-cd backend
-./mvnw test
+cd backend && ./mvnw test
 ```
 
-Key test coverage:
-- Response assistant service (RAG pipeline, similarity filtering, role checks)
-- Tenant transaction executor (RLS context propagation)
-- Redis Stream consumers (classification, summarization)
-- Knowledge base vector repository
+The backend tests require PostgreSQL and Redis to be available, along with matching datasource/Flyway credentials. The vector repository and application-context tests need PostgreSQL; the app also connects to Redis during startup.
 
-**AI Service**
 ```bash
-cd ai-service
-pytest
+cd ai-service && python -m pytest
 ```
 
-Test coverage:
-- Text chunking algorithms
-- Document extraction
-- Embedding generation
-- API endpoints
+```bash
+cd frontend && npm run build
+```
 
-## Technical Decisions
+Backend tests cover service rules, response-assistant request construction and persistence, tenant context behavior, Redis producers/consumers, SLA policy behavior, analytics, local storage, and vector repository integration. AI tests assert chunking, extraction, embedding dimensions, and the embeddings endpoint; they do not test the LLM workflows. Because `app.main` constructs the Gemini provider at import time, AI test imports also require a configured Gemini provider and API key. There are no frontend test scripts or test files in the package.
 
-**Modular Monolith vs Microservices**
-Chose a modular monolith with a separate AI service. This reduces operational complexity while still demonstrating polyglot architecture and inter-service communication. The AI service is separated because it has different scaling characteristics (I/O-bound external API calls) and uses a different technology stack.
+## Current Status
 
-**PostgreSQL + pgvector**
-Avoided a separate vector database for MVP scale. pgvector provides sufficient performance for the expected data volume. The tenant filter is applied in the SQL WHERE clause before the vector search to prevent cross-tenant data leakage.
+**Implemented:** backend ticket workflows and cursor pagination; JWT and organization role handling; tenant RLS; knowledge-base upload/search/RAG; response-assistant suggestion, SSE stream, and approval endpoint; Redis classification and summary workers; SLA policy and breach processing; analytics; SPA views for tickets, KB, SLA policies, analytics, members, and settings.
 
-**Redis Streams for Job Queue**
-Redis Streams provide sufficient queuing capabilities for this scale without the operational overhead of RabbitMQ or Kafka. Consumer groups enable parallel processing with automatic message distribution and dead-letter queue handling.
+**Partial or not exposed end to end:** ticket attachment and audit-log tables exist, but there is no corresponding application workflow; summaries and classifications are stored by the backend, with limited UI evidence for displaying them; WebSocket sessions are process-local and the browser handles only selected event types; local file storage is not an object-storage service; some AI operations exist only as AI-service endpoints and are not exposed as frontend actions. Prompt-injection handling is explicit in the response-assistant prompt but is not independently enforced or covered by adversarial tests.
 
-**Synchronous vs Asynchronous AI Operations**
-- Synchronous: Response assistant (user is waiting for the result)
-- Asynchronous: Ticket classification and summarization (background processing)
-This distinction keeps the request path fast for user-facing operations while enabling heavy processing in the background.
-
-**Cursor-based Pagination**
-Tickets use cursor-based pagination on `(created_at, id)` for efficient large-scale listing. This avoids the performance degradation of offset pagination at scale.
-
-**Prompt Injection Protection**
-The AI service uses explicit "untrusted data" delimiters and instructs the LLM to treat all retrieved content as data, not instructions. This is a defense-in-depth approach against prompt injection from malicious knowledge base documents or customer messages.
-
-## Current Implementation Status
-
-**Fully Functional**
-- Authentication and authorization
-- Multi-tenant data isolation with RLS
-- Ticket CRUD and real-time updates
-- Knowledge base upload and semantic search
-- AI response assistant with streaming
-- Async ticket classification and summarization
-- SLA policy management and tracking
-- Analytics dashboard
-- Rate limiting
-- Local development environment (Docker Compose)
-
-**Partially Implemented**
-- File storage: Uses local filesystem instead of S3 (no presigned URLs, no malware scanning)
-- SLA breach monitoring: Scheduler exists but execution not verified
-- Email: No email service integration (no verification emails, no password reset)
-
-**Not Implemented**
-- S3 object storage
-- Email notifications
-- OAuth login (Google, etc.)
-- Malware/virus scanning
-- AWS/cloud deployment infrastructure
-- CI/CD pipeline
-- Frontend tests
-- E2E tests
-- Audit log UI
-- Tagging system UI
-- Customer portal (separate from agent dashboard)
+**Not present in this repository:** cloud/Terraform deployment, GitHub Actions workflows, email delivery, OAuth, malware scanning, and frontend or end-to-end test suites. The audit-log table, attachment table, and `s3_key` column are schema elements, not evidence that those features are implemented.
 
 ## Roadmap
 
-**Near-term**
-- Add frontend tests (React Testing Library)
-- Implement S3 storage for documents
-- Add email notification service
-- Verify and test SLA breach scheduler execution
+Potential next steps based on the current gaps:
 
-**Medium-term**
-- Add customer portal (separate from agent dashboard)
-- Implement audit log UI
-- Add tagging system UI
-- Set up CI/CD pipeline
-
-**Long-term**
-- AWS deployment with Terraform
-- Dedicated vector database migration (if needed)
-- OAuth login providers
-- E2E test suite with Playwright
+- Add integration tests that run against PostgreSQL and Redis, and LLM-service tests that do not require live credentials.
+- Move document extraction and embedding out of the upload request and add durable object storage if required.
+- Complete attachment and audit-log application workflows, or remove unused schema when no longer needed.
+- Add frontend and end-to-end tests; document a deployment target only after infrastructure is implemented.
