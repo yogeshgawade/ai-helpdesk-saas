@@ -4,6 +4,7 @@ import com.helpdesk.orgs.Organization;
 import com.helpdesk.orgs.OrganizationRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthService(
             UserRepository userRepository,
@@ -24,7 +26,8 @@ public class AuthService {
             MembershipRepository membershipRepository,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
-            JwtService jwtService) {
+            JwtService jwtService,
+            RefreshTokenService refreshTokenService) {
 
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -32,10 +35,11 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public TokenSession register(RegisterRequest request) {
 
         if (userRepository.findByEmailIgnoreCase(request.email()).isPresent()) {
             throw new IllegalArgumentException("Email is already registered");
@@ -62,15 +66,11 @@ public class AuthService {
 
         membershipRepository.save(membership);
 
-        return new AuthResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getName()
-        );
+        return createSession(user);
     }
 
-    @Transactional(readOnly = true)
-    public LoginResponse login(LoginRequest request) {
+    @Transactional
+    public TokenSession login(LoginRequest request) {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -83,17 +83,32 @@ public class AuthService {
                 .findByEmailIgnoreCase(request.email())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        String accessToken = jwtService.generateToken(user);
+        return createSession(user);
+    }
 
-        return new LoginResponse(
-                accessToken,
+    @Transactional
+    public TokenSession refresh(String rawRefreshToken) {
+        User user = refreshTokenService.rotate(rawRefreshToken)
+                .orElseThrow(() -> new BadCredentialsException("Refresh token is invalid or expired"));
+        return createSession(user, refreshTokenService.issue(user));
+    }
+
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        refreshTokenService.revoke(rawRefreshToken);
+    }
+
+    private TokenSession createSession(User user) {
+        return createSession(user, refreshTokenService.issue(user));
+    }
+
+    private TokenSession createSession(User user, String refreshToken) {
+        LoginResponse loginResponse = new LoginResponse(
+                jwtService.generateToken(user),
                 "Bearer",
-                new AuthResponse(
-                        user.getId(),
-                        user.getEmail(),
-                        user.getName()
-                )
+                new AuthResponse(user.getId(), user.getEmail(), user.getName())
         );
+        return new TokenSession(loginResponse, refreshToken);
     }
 
     public String createWebSocketTicket(User user) {
@@ -120,5 +135,8 @@ public class AuthService {
         }
 
         return slug;
+    }
+
+    public record TokenSession(LoginResponse loginResponse, String refreshToken) {
     }
 }

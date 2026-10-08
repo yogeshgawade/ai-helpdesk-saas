@@ -102,6 +102,8 @@ docker-compose.yml              PostgreSQL, Redis, backend, AI service
    cp .env.example .env
 ```
 
+   To seed demo data for development/testing, also set `APP_SEED_DEMO_DATA=true`. This is idempotent and will not create duplicates on subsequent runs.
+
    Compose passes `LLM_FALLBACK_MODEL` to the AI service as both `LLM_MODEL` and its fallback model.
 
 2. **Build the backend JAR, then start the services.** The backend Dockerfile copies the prebuilt artifact, so the JAR must exist before the image is built.
@@ -136,6 +138,42 @@ docker-compose.yml              PostgreSQL, Redis, backend, AI service
   uvicorn app.main:app --reload --port 8000
 ```
 
+## Demo Data Seeding
+
+For development and demo purposes, the application includes an idempotent demo data seeder that creates realistic test data.
+
+**To enable demo data seeding:**
+
+Set `APP_SEED_DEMO_DATA=true` in your `.env` file or pass it to docker-compose:
+
+```bash
+APP_SEED_DEMO_DATA=true docker compose up --build
+```
+
+**What gets created:**
+
+- 1 demo organization (slug: `demo-org`)
+- 7 demo users across all roles:
+  - 1 Owner (alice@demo.local)
+  - 1 Admin (bob@demo.local)
+  - 2 Agents (carol@demo.local, david@demo.local)
+  - 3 Customers (emma@demo.local, frank@demo.local, grace@demo.local)
+- 11 realistic support tickets with multi-message conversations
+- 4 knowledge base documents with embeddings
+- Simulated AI classifications and summaries on some tickets
+
+**Demo login credentials:**
+
+All demo users use password `Demo[Role]123!` (e.g., `DemoOwner123!`, `DemoAgent123!`).
+
+**Idempotency:**
+
+The seeder checks for the existence of the demo organization by slug. If it already exists, seeding is skipped. Running multiple times will not create duplicates.
+
+**Production safety:**
+
+The seeder is gated behind `@ConditionalOnProperty(name = "app.seed-demo-data", havingValue = "true")` and defaults to `false`. It cannot run accidentally in production unless explicitly enabled.
+
 ## Configuration
 
 `.env.example` lists the Compose-facing variables.
@@ -146,6 +184,10 @@ docker-compose.yml              PostgreSQL, Redis, backend, AI service
 | `APP_DB_PASSWORD` | Compose/PostgreSQL | Password for the restricted `helpdesk_app` role |
 | `APP_JWT_SECRET` | Backend | JWT signing secret |
 | `APP_CORS_ALLOWED_ORIGIN` | Backend | Allowed browser origin (default `http://localhost:5173`) |
+| `APP_REFRESH_TOKEN_EXPIRATION_MS` | Backend | Refresh token lifetime in milliseconds (default 30 days) |
+| `APP_REFRESH_COOKIE_SECURE` | Backend | Require HTTPS for the refresh cookie (set `true` in production) |
+| `APP_REFRESH_COOKIE_SAME_SITE` | Backend | Refresh cookie SameSite setting (default `Lax`; use `None` with `Secure=true` for cross-site frontend/API deployments) |
+| `APP_SEED_DEMO_DATA` | Backend | Enable demo data seeding on startup (development only, default `false`) |
 | `LLM_PROVIDER` | AI service | LLM provider; currently only `gemini` |
 | `LLM_MODEL` | AI service | Primary model for a directly run AI process; Compose sets it from `LLM_FALLBACK_MODEL` |
 | `LLM_FALLBACK_MODEL` | AI service/Compose | Gemini fallback model; also used as Compose's primary model |

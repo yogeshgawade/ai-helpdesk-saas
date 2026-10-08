@@ -5,7 +5,11 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { login as loginApi, register as registerApi } from '../../api/auth'
+import {
+  login as loginApi,
+  logout as logoutApi,
+  register as registerApi,
+} from '../../api/auth'
 import type { LoginRequest, RegisterRequest } from '../../types/auth'
 import { queryClient } from '../../lib/query-client'
 
@@ -66,6 +70,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  useEffect(() => {
+    const handleTokenRefresh = (event: Event) => {
+      const tokenEvent = event as CustomEvent<string>
+      setToken(tokenEvent.detail)
+    }
+
+    window.addEventListener('auth:token-refreshed', handleTokenRefresh)
+    return () => window.removeEventListener('auth:token-refreshed', handleTokenRefresh)
+  }, [])
+
   async function login(request: LoginRequest) {
     const response = await loginApi(request)
 
@@ -85,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    void logoutApi().catch(() => undefined)
     queryClient.clear()
     localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
     setToken(null)

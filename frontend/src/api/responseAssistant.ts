@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { apiClient, refreshAccessToken } from './client'
 import type { TicketMessage } from '../features/tickets/types'
 
 export interface ResponseAssistantCitation {
@@ -49,7 +49,7 @@ export async function streamResponseAssistant(
   onChunk: (chunk: string) => void,
   onComplete: (result: ResponseAssistantComplete) => void,
 ): Promise<void> {
-  const token = localStorage.getItem('auth_token')
+  let token = localStorage.getItem('auth_token')
 
   if (!token) {
     throw new Error('Authentication token not found.')
@@ -58,16 +58,29 @@ export async function streamResponseAssistant(
   const baseUrl =
     import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
-  const response = await fetch(
-    `${baseUrl}/api/orgs/${organizationId}/tickets/${ticketId}/ai/stream-response`,
-    {
+  const url = `${baseUrl}/api/orgs/${organizationId}/tickets/${ticketId}/ai/stream-response`
+  const createRequest = (accessToken: string) => fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
         Accept: 'text/event-stream',
       },
-    },
-  )
+      credentials: 'include',
+    })
+
+  let response = await createRequest(token)
+  if (response.status === 401) {
+    try {
+      token = await refreshAccessToken()
+      response = await createRequest(token)
+    } catch {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+  }
 
   if (!response.ok) {
     let message = `Failed to generate AI response (${response.status}).`

@@ -80,6 +80,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(java.util.List.of(allowedOrigin));
+        configuration.setAllowCredentials(true);
         configuration.setAllowedMethods(java.util.List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ));
